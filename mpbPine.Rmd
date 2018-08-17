@@ -1,0 +1,28 @@
+---
+title: "mpbPine"
+author:
+  - "Alex M. Chubaty"
+  - "Barry J. Cooke"
+  - "Eliot J. B. McIntire"
+date: "February 5, 2018"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+bibliography:
+  - ../../bibliography.bib
+---
+
+### `mpbPine`
+
+Remote sensed data from Canada’s National Forest Inventory (NFI) provide the basis for the pine layers used in this module.
+These data were used by @Beaudoin:2014cf to map coverage of several forest species using a k-nearest  (kNN) method to generate national 250m x 250m pixel resolution maps.
+Here we use the estimated percentage cover pine per species for Jack pine (*Pinus banksiana*) and Lodgepole pine (*P. contorta* var *latifolia*), reprojected to use an Albers equal-area conic projection within the simulation.
+All data downloads and preprocessing were scripted for reproducibility from raw, original sources.
+
+In the current model, we calculate the number of available jack pine and lodgepole pine trees from the proportion pine for each species, by multiplying by the average stem density of 1125 mature stems per hectare, which is typical for beetle-prone lodgepole pine stands [@@Beaudoin:2014cf].
+
+A more sophisticated estimate of pine stem density for each species is currently under development for future versions of this module.
+
+#### References
