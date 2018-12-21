@@ -13,7 +13,7 @@ defineModule(sim, list(
   timeunit = "year",
   citation = list("citation.bib"),
   documentation = list("README.txt", "mpbPine.Rmd"),
-  reqdPkgs = list("data.table", "magrittr", "quickPlot", "raster", "reproducible", "sp"),
+  reqdPkgs = list("amc", "data.table", "magrittr", "quickPlot", "raster", "reproducible", "sp"),
   parameters = rbind(
     defineParameter(".plotInitialTime", "numeric", start(sim), NA, NA, "This describes the simulation time at which the first plot event should occur"),
     defineParameter(".plotInterval", "numeric", NA, NA, NA, "This describes the simulation time interval between plot events"),
@@ -67,7 +67,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
 
 .inputObjects <- function(sim) {
   # ! ----- EDIT BELOW ----- ! #
-  dataDir <- file.path(modulePath(sim), "mpbPine", "data")
+  dataDir <- dataPath(sim)
 
   ## percent pine layers
   message("Checking for kNN-Species data layers...")
@@ -153,12 +153,10 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
   }
 
   ## load study area
-  if (!('studyArea' %in% sim$.userSuppliedObjNames)) {
-    f <- file.path(modulePath(sim), "mpbPine", "data", "studyArea.kml")
+  if (!suppliedElsewhere("studyArea")) {
     prj <- paste("+proj=aea +lat_1=47.5 +lat_2=54.5 +lat_0=0 +lon_0=-113",
                  "+x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs +ellps=GRS80 +towgs84=0,0,0")
-    sim$studyArea <- readOGR(f, "studyArea.kml") %>%
-      sp::spTransform(., prj)
+    sim$studyArea <- amc::loadStudyArea(dataPath(sim), "studyArea.kml", prj)
   }
 
   # ! ----- STOP EDITING ----- ! #
@@ -173,14 +171,13 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
 mpbPineImportMap <- function(sim) {
   layerNames <- c("Jack_Pine", "Lodgepole_Pine")
 
-  f <- file.path(modulePath(sim), "mpbPine", "data",
-                 c("NFI_MODIS250m_kNN_Species_Pinu_Ban_v0.tif",
-                   "NFI_MODIS250m_kNN_Species_Pinu_Con_v0.tif"))
+  f <- file.path(dataPath(sim), c("NFI_MODIS250m_kNN_Species_Pinu_Ban_v0.tif",
+                                  "NFI_MODIS250m_kNN_Species_Pinu_Con_v0.tif"))
   stopifnot(all(file.exists(f)))
 
   s <- raster::stack(f) # this map is a percentage; need to use proportion (see below)
   names(s) <- layerNames
-  sim$pineMap <- Cache(amc::cropReproj, x = s, studyArea = sim$studyArea,
+  sim$pineMap <- Cache(amc::cropReproj, x = s, studyArea = sim$studyArea, ## TODO: use postProcess
                        layerNames = layerNames, inRAM = TRUE)
 
   ## create data.table version
