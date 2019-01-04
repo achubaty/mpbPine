@@ -1,2 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<metadata xml:lang="en"><Esri><CreaDate>20140120</CreaDate><CreaTime>12372700</CreaTime><ArcGISFormat>1.0</ArcGISFormat><SyncOnce>TRUE</SyncOnce><DataProperties><lineage><Process ToolSource="c:\program files (x86)\arcgis\desktop10.1\ArcToolbox\Toolboxes\Data Management Tools.tbx\CalculateStatistics" Date="20140120" Time="123727">CalculateStatistics "\\vault\nfi\Resources\kNN Layers\NFI_MODIS250m_kNN_Structure_Stand_Age_v0.tif" 1 1 # SKIP_EXISTING "Feature Set"</Process></lineage></DataProperties></Esri></metadata>
