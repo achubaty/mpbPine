@@ -21,6 +21,8 @@ defineModule(sim, list(
                     desc = "Should high memory-usage steps be skipped? Useful for running on laptops."),
     defineParameter("sppEquivCol", "character", "KNN", NA, NA,
                     desc = "The column in sim$specieEquivalency data.table to use as a naming convention"),
+    defineParameter(".maxMemory", "numeric", 1e+9, NA, NA,
+                    "Used to set the 'maxmemory' raster option. See '?rasterOptions'."),
     defineParameter(".plotInitialTime", "numeric", start(sim), NA, NA,
                     desc = "This describes the simulation time at which the first plot event should occur"),
     defineParameter(".plotInterval", "numeric", NA, NA, NA,
@@ -29,6 +31,8 @@ defineModule(sim, list(
                     desc = "This describes the simulation time at which the first save event should occur"),
     defineParameter(".saveInterval", "numeric", NA, NA, NA,
                     desc = "This describes the simulation time interval between save events"),
+    defineParameter(".tempdir", "character", tempdir(), NA, NA,
+                    "Temporary (scratch) directory to use for transient files (e.g., GIS intermediates)."),
     defineParameter(".useCache", "logical", FALSE, NA, NA,
                     desc = "Should this entire module be run with caching activated?")
   ),
@@ -39,6 +43,9 @@ defineModule(sim, list(
     expectsInput("pineMap", "RasterStack",
                  desc = "Percent cover maps by species (lodgepole and jack pine).",
                  sourceURL = "http://tree.nfis.org/kNN-Species.tar"),
+    expectsInput("rasterToMatch", "RasterLayer",
+                 desc = "if not supplied, will default to standAgeMap", # TODO: description needed
+                 sourceURL = NA),
     expectsInput("sppColors", "character",
                  desc = paste("A named vector of colors to use for plotting.",
                               "The names must be in sim$speciesEquivalency[[sim$sppEquivCol]],",
@@ -64,7 +71,7 @@ defineModule(sim, list(
                  sourceURL = "http://tree.nfis.org/NFI_and_kNN_Mapping_20160628.docx")
   ),
   outputObjects = bind_rows(
-    createsOutput("pineDT", "data.table", "Percent cover maps by species (lodgepole and jack pine)."), # TODO
+    createsOutput("pineDT", "data.table", "Proportion cover etc. by species (lodgepole and jack pine)."),
     createsOutput("pineMap", "RasterLayer", "Percent cover maps by species (lodgepole and jack pine).")
   )
 ))
@@ -76,7 +83,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
   switch(eventType,
     "init" = {
       # do stuff for this event
-      sim <- sim$importMap(sim)
+      sim <- importMap(sim)
 
       # schedule future event(s)
       sim <- scheduleEvent(sim, P(sim)$.plotInitialTime, "mpbPine", "plot")
@@ -85,7 +92,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
     "plot" = {
       # ! ----- EDIT BELOW ----- ! #
       # do stuff for this event
-      Plot(sim$pineMap, title = c("Percent Jack Pine", "Percent Lodgepole Pine"))
+      Plot(sim$pineMap, title = c("Percent Jack Pine", "Percent Lodgepole Pine")) ## TODO: Pinu_con & Pinu_con_lat
       Plot(sim$studyArea, addTo = "sim$pineMap") # TODO: check that this correctly adds polygons to each map
 
       # schedule future event(s)
@@ -101,7 +108,8 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
 .inputObjects <- function(sim) {
   cacheTags <- c(currentModule(sim), "function:.inputObjects")
   dPath <- asPath(getOption("reproducible.destinationPath", dataPath(sim)), 1)
-  message(currentModule(sim), ": using dataPath '", dPath, "'.")
+  if (getOption("LandR.verbose", TRUE) > 0)
+    message(currentModule(sim), ": using dataPath '", dPath, "'.")
 
   ## load study area
   if (!suppliedElsewhere("studyArea")) {
@@ -191,15 +199,13 @@ importMap <- function(sim) {
   ## pine map is a percentage; need to use proportion below:
 
   ## create data.table version
-  jpDT <- data.table(ID = 1L:ncell(sim$pineMap[["Jack_Pine"]]),
-                     PROPPINE = sim$pineMap[["Jack_Pine"]][] / 100) # use proportion
-  jpDT <- jpDT[PROPPINE > 0]
-  jpDT <- jpDT[, SPECIES := "jack"]
+  jpDT <- data.table(ID = 1L:ncell(sim$pineMap[["Pinu_Ban"]]),
+                     PROPPINE = sim$pineMap[["Pinu_Ban"]][] / 100) # use proportion
+  jpDT <- jpDT[PROPPINE > 0][, SPECIES := "jack"]
 
-  lpDT <- data.table(ID = 1L:ncell(sim$pineMap[["Lodgepole_Pine"]]),
-                     PROPPINE = sim$pineMap[["Lodgepole_Pine"]][] / 100) # use proportion
-  lpDT <- lpDT[PROPPINE > 0]
-  lpDT <- lpDT[, SPECIES := "lodgepole"]
+  lpDT <- data.table(ID = 1L:ncell(sim$pineMap[["Pinu_Con"]]),
+                     PROPPINE = sim$pineMap[["Pinu_Con"]][] / 100) # use proportion
+  lpDT <- lpDT[PROPPINE > 0][, SPECIES := "lodgepole"]
 
   sim$pineDT <- merge(lpDT, jpDT, all = TRUE)
   setkey(sim$pineDT, ID)
