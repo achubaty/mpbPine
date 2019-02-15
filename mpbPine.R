@@ -197,17 +197,10 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
 
 importMap <- function(sim) {
   ## pine map is a percentage; need to use proportion below:
-
+browser()
   ## create data.table version
-  jpDT <- data.table(ID = 1L:ncell(sim$pineMap[["Pinu_ban"]]), ## TODO: use sppEquivNames
-                     PROPPINE = sim$pineMap[["Pinu_ban"]][] / 100) # use proportion
-  jpDT <- jpDT[PROPPINE > 0][, SPECIES := "jack"]
-
-  lpDT <- data.table(ID = 1L:ncell(sim$pineMap[["Pinu_con"]]), ## TODO: use sppEquivNames
-                     PROPPINE = sim$pineMap[["Pinu_con"]][] / 100) # use proportion
-  lpDT <- lpDT[PROPPINE > 0][, SPECIES := "lodgepole"]
-
-  sim$pineDT <- merge(lpDT, jpDT, all = TRUE)
+  sim$pineDT <- data.table(ID = 1L:ncell(sim$pineMap[["Pinu_sp"]]), ## TODO: use sppEquivNames
+                           PROPPINE = sim$pineMap[["Pinu_sp"]][] / 100) # use proportion
   sim$pineDT[, NUMTREES := PROPPINE * 1125 * prod(res(sim$pineMap)) / 100^2] ## 1125 is mean stems/ha for pine stands
   setkey(sim$pineDT, ID)
 
