@@ -177,18 +177,20 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
   }
 
   ## percent pine layers
-  message("Checking for kNN-Species data layers...")
-  sim$pineMap <- Cache(loadkNNSpeciesLayers,
-                       dPath = dPath,
-                       rasterToMatch = sim$rasterToMatch,
-                       studyArea = sim$studyArea,
-                       sppEquiv = sim$sppEquiv,
-                       knnNamesCol = "KNN",
-                       sppEquivCol = P(sim)$sppEquivCol,
-                       # thresh = 10,
-                       url = na.omit(extractURL("pineMap")),
-                       cachePath = cachePath(sim),
-                       userTags = c(cacheTags, "speciesLayers"))
+  if (!suppliedElsewhere(sim$pineMap)) {
+    message("Checking for kNN-Species data layers...")
+    sim$pineMap <- Cache(loadkNNSpeciesLayers, ## TODO: only extract relevant spp!!
+                         dPath = dPath,
+                         rasterToMatch = sim$rasterToMatch,
+                         studyArea = sim$studyArea,
+                         sppEquiv = sim$sppEquiv,
+                         knnNamesCol = "KNN",
+                         sppEquivCol = P(sim)$sppEquivCol,
+                         # thresh = 10,
+                         url = na.omit(extractURL("pineMap")),
+                         cachePath = cachePath(sim),
+                         userTags = c(cacheTags, "speciesLayers"))
+  }
 
   return(invisible(sim))
 }
