@@ -199,12 +199,12 @@ importMap <- function(sim) {
   ## pine map is a percentage; need to use proportion below:
 
   ## create data.table version
-  jpDT <- data.table(ID = 1L:ncell(sim$pineMap[["Pinu_Ban"]]),
-                     PROPPINE = sim$pineMap[["Pinu_Ban"]][] / 100) # use proportion
+  jpDT <- data.table(ID = 1L:ncell(sim$pineMap[["Pinu_ban"]]),
+                     PROPPINE = sim$pineMap[["Pinu_ban"]][] / 100) # use proportion
   jpDT <- jpDT[PROPPINE > 0][, SPECIES := "jack"]
 
-  lpDT <- data.table(ID = 1L:ncell(sim$pineMap[["Pinu_Con"]]), ## TODO: confirm whether kNN uses Pinu_Con or Pinu_Con_Lat !!
-                     PROPPINE = sim$pineMap[["Pinu_Con"]][] / 100) # use proportion
+  lpDT <- data.table(ID = 1L:ncell(sim$pineMap[["Pinu_con"]]),
+                     PROPPINE = sim$pineMap[["Pinu_con"]][] / 100) # use proportion
   lpDT <- lpDT[PROPPINE > 0][, SPECIES := "lodgepole"]
 
   sim$pineDT <- merge(lpDT, jpDT, all = TRUE)
