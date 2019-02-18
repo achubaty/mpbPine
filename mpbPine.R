@@ -60,6 +60,9 @@ defineModule(sim, list(
     expectsInput("studyArea", "SpatialPolygons",
                  desc = "The study area to which all maps will be cropped and reprojected.",
                  sourceURL = NA), ## TODO: link to Google Drive
+    expectsInput("studyAreaLarge", "SpatialPolygons",
+                 desc = "The larger study area to use for spread parameter estimation.", ## TODO: better desc needed
+                 sourceURL = NA),
     expectsInput(NA, NA,
                  desc = "Additional documentation for kNN datasets.",
                  sourceURL = "http://tree.nfis.org/cjfr-2013-0401suppl.pdf"),
@@ -92,7 +95,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
     "plot" = {
       # ! ----- EDIT BELOW ----- ! #
       # do stuff for this event
-      Plot(sim$pineMap, title = c("Percent Jack Pine", "Percent Lodgepole Pine")) ## TODO: Pinu_con & Pinu_con_lat
+      Plot(sim$pineMap, title = "Percent Pine") ## TODO: Pinu_con & Pinu_con_lat
       Plot(sim$studyArea, addTo = "sim$pineMap") # TODO: check that this correctly adds polygons to each map
 
       # schedule future event(s)
@@ -153,7 +156,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
                              destinationPath = dPath,
                              url = na.omit(extractURL("standAgeMap")),
                              fun = "raster::raster",
-                             studyArea = sim$studyArea,
+                             studyArea = sim$studyAreaLarge,
                              rasterToMatch = sim$rasterToMatch,
                              method = "bilinear",
                              datatype = "INT2U",
@@ -182,7 +185,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
     sim$pineMap <- Cache(loadkNNSpeciesLayers, ## TODO: only extract relevant spp!!
                          dPath = dPath,
                          rasterToMatch = sim$rasterToMatch,
-                         studyArea = sim$studyArea,
+                         studyArea = sim$studyAreaLarge,
                          sppEquiv = sim$sppEquiv,
                          knnNamesCol = "KNN",
                          sppEquivCol = P(sim)$sppEquivCol,
@@ -198,12 +201,12 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
 ## event functions
 
 importMap <- function(sim) {
-  ## pine map is a percentage; need to use proportion below:
-
   ## create data.table version
   sim$pineDT <- data.table(ID = 1L:ncell(sim$pineMap[["Pinu_sp"]]), ## TODO: use sppEquivNames
                            PROPPINE = sim$pineMap[["Pinu_sp"]][] / 100) # use proportion
-  sim$pineDT[, NUMTREES := PROPPINE * 1125 * prod(res(sim$pineMap)) / 100^2] ## 1125 is mean stems/ha for pine stands
+  sim$pineDT[, NUMTREES := PROPPINE * 1125 * prod(res(sim$pineMap)) / 100^2]
+  ## NOTE: 1125 is mean stems/ha for pine stands, per Whitehead & Russo (2005), Cooke & Carroll (unpublished)
+
   setkey(sim$pineDT, ID)
   sim$pineDT[is.na(PROPPINE), ':='(PROPPINE = 0.00, NUMTREES = 0.00)]
 
