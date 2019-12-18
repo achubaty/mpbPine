@@ -25,4 +25,3 @@ In the current model, we calculate the number of available jack pine and lodgepo
 
 A more sophisticated estimate of pine stem density for each species is currently under development for future versions of this module.
 
-#### References

@@ -202,8 +202,8 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
 
 importMap <- function(sim) {
   ## create data.table version
-  sim$pineDT <- data.table(ID = 1L:ncell(sim$pineMap[["Pinu_sp"]]), ## TODO: use sppEquivNames
-                           PROPPINE = sim$pineMap[["Pinu_sp"]][] / 100) # use proportion
+  sim$pineDT <- data.table(ID = 1L:ncell(sim$pineMap), ## TODO: use sppEquivNames
+                           PROPPINE = (sim$pineMap[["Pinu_Ban"]][] + sim$pineMap[["Pinu_Con_Lat"]][]) / 100) # use proportion
   sim$pineDT[, NUMTREES := PROPPINE * 1125 * prod(res(sim$pineMap)) / 100^2]
   ## NOTE: 1125 is mean stems/ha for pine stands, per Whitehead & Russo (2005), Cooke & Carroll (unpublished)
 
