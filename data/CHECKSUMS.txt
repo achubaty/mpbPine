@@ -128,3 +128,5 @@
 "NFI_MODIS250m_kNN_Structure_Volume_Total_v0.tif.xml" "cc394c2fb3bec1d7" "xxhash64" NA
 "studyArea.kml" "e84cdbaa4aec590d" "xxhash64" NA
 "NFI_MODIS250m_kNN_Species_Pinu_Con_Lat_v0.tif" "1cd250eb5a53083d" "xxhash64" "21291662"
+"NFI_MODIS250m_2001_kNN_Species_Pinu_Ban_v1.tif" "ef21d19b1fb022e5" "xxhash64" "110645324"
+"NFI_MODIS250m_2001_kNN_Species_Pinu_Con_v1.tif" "f47dcf0ec8beb544" "xxhash64" "47198594"

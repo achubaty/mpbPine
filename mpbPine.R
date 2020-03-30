@@ -39,7 +39,9 @@ defineModule(sim, list(
                  sourceURL = NA),
     expectsInput("pineMap", "RasterStack",
                  desc = "Percent cover maps by species (lodgepole and jack pine).",
-                 sourceURL = "http://tree.nfis.org/kNN-Species.tar"),
+                 sourceURL = paste0("http://ftp.maps.canada.ca/pub/nrcan_rncan/Forests_Foret/",
+                                    "canada-forests-attributes_attributs-forests-canada/",
+                                    "2001-attributes_attributs-2001/")),
     expectsInput("rasterToMatch", "RasterLayer",
                  desc = "if not supplied, will default to standAgeMap", # TODO: description needed
                  sourceURL = NA),
@@ -53,7 +55,10 @@ defineModule(sim, list(
                  sourceURL = ""),
     expectsInput("standAgeMap", "RasterLayer",
                  desc = "stand age map in study area, default is Canada national stand age map",
-                 sourceURL = "http://tree.pfc.forestry.ca/kNN-StructureStandVolume.tar"),
+                 sourceURL = paste0("http://ftp.maps.canada.ca/pub/nrcan_rncan/Forests_Foret/",
+                                    "canada-forests-attributes_attributs-forests-canada/",
+                                    "2001-attributes_attributs-2001/",
+                                    "NFI_MODIS250m_2001_kNN_Structure_Stand_Age_v1.tif")),
     expectsInput("studyArea", "SpatialPolygons",
                  desc = "The study area to which all maps will be cropped and reprojected.",
                  sourceURL = NA), ## TODO: link to Google Drive
@@ -92,8 +97,8 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
     "plot" = {
       # ! ----- EDIT BELOW ----- ! #
       # do stuff for this event
-      Plot(sim$pineMap, title = "Percent Pine") ## TODO: Pinu_con & Pinu_con_lat
-      Plot(sim$studyArea, addTo = "sim$pineMap") # TODO: check that this correctly adds polygons to each map
+      Plot(sim$pineMap, title = "Percent Pine")  ## TODO: Pinu_con & Pinu_con_lat
+      Plot(sim$studyArea, addTo = "sim$pineMap") ## TODO: check that this correctly adds polygons to each map
 
       # schedule future event(s)
       sim <- scheduleEvent(sim, time(sim) + P(sim)$.plotInterval, "mpbPine", "plot")
@@ -120,21 +125,10 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
 
   ## stand age map
   if (!suppliedElsewhere("standAgeMap", sim)) {
-    standAgeMapFilename <- file.path(dPath, "NFI_MODIS250m_kNN_Structure_Stand_Age_v0.tif")
-    sim$standAgeMap <- Cache(prepInputs,
-                             targetFile = basename(standAgeMapFilename),
-                             archive = asPath(c("kNN-StructureStandVolume.tar",
-                                                "NFI_MODIS250m_kNN_Structure_Stand_Age_v0.zip")),
-                             destinationPath = dPath,
-                             url = na.omit(extractURL("standAgeMap")),
-                             fun = "raster::raster",
-                             studyArea = sim$studyArea,
-                             #rasterToMatch = sim$rasterToMatch,
-                             method = "bilinear",
-                             datatype = "INT2U",
-                             filename2 = paste0(tools::file_path_sans_ext(basename(standAgeMapFilename)), "_cropped"),
-                             overwrite = TRUE,
-                             userTags = c("stable", currentModule(sim)))
+    sim$standAgeMap <- amc::loadkNNageMap(path = dPath,
+                                          url = na.omit(extractURL("standAgeMap")),
+                                          studyArea = sim$studyArea,
+                                          userTags = c("stable", currentModule(sim)))
     sim$standAgeMap[] <- asInteger(sim$standAgeMap[])
   }
 
@@ -144,24 +138,24 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
   }
 
   ## stand volumes
-  if (!suppliedElsewhere("standVolumeMap", sim)) {
-    standVolMapFilename <- file.path(dPath, "NFI_MODIS250m_kNN_Structure_Volume_Total_v0.tif")
-    sim$standVolMap <- Cache(prepInputs,
-                             targetFile = basename(standVolMapFilename),
-                             archive = asPath(c("kNN-StructureStandVolume.tar",
-                                                "NFI_MODIS250m_kNN_Structure_Volume_Total_v0.zip")),
-                             destinationPath = dPath,
-                             url = na.omit(extractURL("standAgeMap")),
-                             fun = "raster::raster",
-                             studyArea = sim$studyAreaLarge,
-                             rasterToMatch = sim$rasterToMatch,
-                             method = "bilinear",
-                             datatype = "INT2U",
-                             filename2 = paste0(tools::file_path_sans_ext(basename(standVolMapFilename)), "_cropped"),
-                             overwrite = TRUE,
-                             userTags = c("stable", currentModule(sim)))
-    sim$standVolMap[] <- asInteger(sim$standVolMap[])
-  }
+  # if (!suppliedElsewhere("standVolumeMap", sim)) {
+  #   standVolMapFilename <- file.path(dPath, "NFI_MODIS250m_kNN_Structure_Volume_Total_v0.tif")
+  #   sim$standVolMap <- Cache(prepInputs,
+  #                            targetFile = basename(standVolMapFilename),
+  #                            archive = asPath(c("kNN-StructureStandVolume.tar",
+  #                                               "NFI_MODIS250m_kNN_Structure_Volume_Total_v0.zip")),
+  #                            destinationPath = dPath,
+  #                            url = na.omit(extractURL("standAgeMap")),
+  #                            fun = "raster::raster",
+  #                            studyArea = sim$studyAreaLarge,
+  #                            rasterToMatch = sim$rasterToMatch,
+  #                            method = "bilinear",
+  #                            datatype = "INT2U",
+  #                            filename2 = paste0(tools::file_path_sans_ext(basename(standVolMapFilename)), "_cropped"),
+  #                            overwrite = TRUE,
+  #                            userTags = c("stable", currentModule(sim)))
+  #   sim$standVolMap[] <- asInteger(sim$standVolMap[])
+  # }
 
   if (!suppliedElsewhere("sppEquiv", sim)) {
     data("sppEquivalencies_CA", package = "LandR", envir = environment())
@@ -198,6 +192,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
 ## event functions
 
 importMap <- function(sim) {
+  browser()
   ## create data.table version
   sim$pineDT <- data.table(ID = 1L:ncell(sim$pineMap), ## TODO: use sppEquivNames
                            PROPPINE = (sim$pineMap[["Pinu_Ban"]][] + sim$pineMap[["Pinu_Con_Lat"]][]) / 100) # use proportion
