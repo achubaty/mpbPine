@@ -130,3 +130,4 @@
 "NFI_MODIS250m_kNN_Species_Pinu_Con_Lat_v0.tif" "1cd250eb5a53083d" "xxhash64" "21291662"
 "NFI_MODIS250m_2001_kNN_Species_Pinu_Ban_v1.tif" "ef21d19b1fb022e5" "xxhash64" "110645324"
 "NFI_MODIS250m_2001_kNN_Species_Pinu_Con_v1.tif" "f47dcf0ec8beb544" "xxhash64" "47198594"
+"gadm36_CAN_1_sp.rds" "6d1f11cf41d68186" "xxhash64" "19080844"

@@ -12,11 +12,11 @@ defineModule(sim, list(
   documentation = list("README.txt", "mpbPine.Rmd"),
   reqdPkgs = list("achubaty/amc@development", "data.table",
                   "PredictiveEcology/LandR@development",
-                  "magrittr", "quickPlot", "raster", "reproducible", "sp"),
+                  "magrittr", "quickPlot", "raster", "reproducible", "sp", "spatialEco"),
   parameters = rbind(
     defineParameter("lowMemory", "logical", FALSE, NA, NA,
                     desc = "Should high memory-usage steps be skipped? Useful for running on laptops."),
-    defineParameter("sppEquivCol", "character", "KNN", NA, NA,
+    defineParameter("sppEquivCol", "character", "Boreal", NA, NA,
                     desc = "The column in sim$specieEquivalency data.table to use as a naming convention"),
     defineParameter(".maxMemory", "numeric", 1e+9, NA, NA,
                     "Used to set the 'maxmemory' raster option. See '?rasterOptions'."),
@@ -116,18 +116,48 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
   if (getOption("LandR.verbose", TRUE) > 0)
     message(currentModule(sim), ": using dataPath '", dPath, "'.")
 
+  #mod$prj <- paste("+proj=aea +lat_1=47.5 +lat_2=54.5 +lat_0=0 +lon_0=-113",
+  #                 "+x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs +ellps=GRS80 +towgs84=0,0,0")
+  mod$prj <- paste("+proj=lcc +lat_1=49 +lat_2=77 +lat_0=0 +lon_0=-95",
+                   "+x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+
   ## load study area
   if (!suppliedElsewhere("studyArea")) {
-    prj <- paste("+proj=aea +lat_1=47.5 +lat_2=54.5 +lat_0=0 +lon_0=-113",
-                 "+x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs +ellps=GRS80 +towgs84=0,0,0")
-    sim$studyArea <- amc::loadStudyArea(dataPath(sim), "studyArea.kml", prj)
+    sim$studyArea <- amc::loadStudyArea(dataPath(sim), "studyArea.kml", mod$prj)
+  }
+
+  canProvs <- Cache(prepInputs, dlFun = "raster::getData", "GADM",
+                    country = "CAN", level = 1, path = dPath,
+                    destinationPath = dPath,
+                    targetFile = "gadm36_CAN_1_sp.rds", ## TODO: this will change as GADM data update
+                    fun = "base::readRDS")
+
+  ## studyAreaLarge
+  if (!suppliedElsewhere("studyAreaLarge")) {
+    west <- canProvs[canProvs$NAME_1 %in% c("Alberta", "Saskatchewan"), ]
+    west <- Cache(postProcess, west, targetCRS = mod$prj, filename2 = NULL)
+
+    sim$studyAreaLarge <- Cache(prepInputs,
+                                targetFile = "NABoreal.shp",
+                                alsoExtract = "similar",
+                                archive = asPath("boreal.zip"),
+                                destinationPath = dPath,
+                                url = "http://cfs.nrcan.gc.ca/common/boreal.zip",
+                                fun = "sf::read_sf",
+                                useSAcrs = TRUE,
+                                studyArea = west,
+                                filename2 = NULL,
+                                userTags = c("stable", currentModule(sim), "NorthAmericanBoreal")) %>%
+      as("Spatial") %>%
+      aggregate() %>%
+      spatialEco::remove.holes()
   }
 
   ## stand age map
   if (!suppliedElsewhere("standAgeMap", sim)) {
     sim$standAgeMap <- amc::loadkNNageMap(path = dPath,
                                           url = na.omit(extractURL("standAgeMap")),
-                                          studyArea = sim$studyArea,
+                                          studyArea = sim$studyAreaLarge,
                                           userTags = c("stable", currentModule(sim)))
     sim$standAgeMap[] <- asInteger(sim$standAgeMap[])
   }
@@ -173,14 +203,13 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
   ## percent pine layers
   if (!suppliedElsewhere(sim$pineMap)) {
     message("Checking for kNN-Species data layers...")
-    sim$pineMap <- Cache(loadkNNSpeciesLayers, ## TODO: only extract relevant spp!!
+    sim$pineMap <- Cache(loadkNNSpeciesLayers,
                          dPath = dPath,
                          rasterToMatch = sim$rasterToMatch,
                          studyArea = sim$studyAreaLarge,
                          sppEquiv = sim$sppEquiv,
                          knnNamesCol = "KNN",
                          sppEquivCol = P(sim)$sppEquivCol,
-                         # thresh = 10,
                          url = na.omit(extractURL("pineMap")),
                          cachePath = cachePath(sim),
                          userTags = c(cacheTags, "speciesLayers"))
@@ -192,12 +221,11 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
 ## event functions
 
 importMap <- function(sim) {
-  browser()
   ## create data.table version
   sim$pineDT <- data.table(ID = 1L:ncell(sim$pineMap), ## TODO: use sppEquivNames
-                           PROPPINE = (sim$pineMap[["Pinu_Ban"]][] + sim$pineMap[["Pinu_Con_Lat"]][]) / 100) # use proportion
+                           PROPPINE = (sim$pineMap[["Pinu_Ban"]][] + sim$pineMap[["Pinu_Con"]][]) / 100) # use proportion
   sim$pineDT[, NUMTREES := PROPPINE * 1125 * prod(res(sim$pineMap)) / 100^2]
-  ## NOTE: 1125 is mean stems/ha for pine stands, per Whitehead & Russo (2005), Cooke & Carroll (unpublished)
+  ## NOTE: 1125 is mean stems/ha for pine stands, per Whitehead & Russo (2005), Cooke & Carroll (2017)
 
   setkey(sim$pineDT, ID)
   sim$pineDT[is.na(PROPPINE), ':='(PROPPINE = 0.00, NUMTREES = 0.00)]
