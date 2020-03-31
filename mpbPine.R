@@ -91,14 +91,15 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
       sim <- importMap(sim)
 
       # schedule future event(s)
-      sim <- scheduleEvent(sim, P(sim)$.plotInitialTime, "mpbPine", "plot")
-      sim <- scheduleEvent(sim, P(sim)$.saveInitialTime, "mpbPine", "save")
+      sim <- scheduleEvent(sim, P(sim)$.plotInitialTime, "mpbPine", "plot", .last() - 1)
+      sim <- scheduleEvent(sim, P(sim)$.saveInitialTime, "mpbPine", "save", .last())
     },
     "plot" = {
       # ! ----- EDIT BELOW ----- ! #
       # do stuff for this event
-      Plot(sim$pineMap, title = "Percent Pine")  ## TODO: Pinu_con & Pinu_con_lat
-      Plot(sim$studyArea, addTo = "sim$pineMap") ## TODO: check that this correctly adds polygons to each map
+      pineMap <- sum(sim$pineMap)
+      Plot(pineMap, title = "Percent Pine")
+      Plot(sim$studyArea, addTo = "pineMap", gp = gpar(col = "black", fill = 0), title = "")
 
       # schedule future event(s)
       sim <- scheduleEvent(sim, time(sim) + P(sim)$.plotInterval, "mpbPine", "plot")
