@@ -62,9 +62,6 @@ defineModule(sim, list(
     expectsInput("studyArea", "SpatialPolygons",
                  desc = "The study area to which all maps will be cropped and reprojected.",
                  sourceURL = NA), ## TODO: link to Google Drive
-    expectsInput("studyAreaLarge", "SpatialPolygons",
-                 desc = "The larger study area to use for spread parameter estimation.", ## TODO: better desc needed
-                 sourceURL = NA),
     expectsInput(NA, NA,
                  desc = "Additional documentation for kNN datasets.",
                  sourceURL = "http://tree.nfis.org/cjfr-2013-0401suppl.pdf"),
@@ -127,46 +124,26 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
     sim$studyArea <- amc::loadStudyArea(dataPath(sim), "studyArea.kml", mod$prj)
   }
 
-  canProvs <- Cache(prepInputs, dlFun = "raster::getData", "GADM",
-                    country = "CAN", level = 1, path = dPath,
-                    destinationPath = dPath,
-                    targetFile = "gadm36_CAN_1_sp.rds", ## TODO: this will change as GADM data update
-                    fun = "base::readRDS")
-
-  ## studyAreaLarge
-  if (!suppliedElsewhere("studyAreaLarge")) {
-    west <- canProvs[canProvs$NAME_1 %in% c("Alberta", "Saskatchewan"), ]
-    west <- Cache(postProcess, west, targetCRS = mod$prj, filename2 = NULL)
-
-    sim$studyAreaLarge <- Cache(prepInputs,
-                                targetFile = "NABoreal.shp",
-                                alsoExtract = "similar",
-                                archive = asPath("boreal.zip"),
-                                destinationPath = dPath,
-                                #url = "http://cfs.nrcan.gc.ca/common/boreal.zip",
-                                url = "https://d278fo2rk9arr5.cloudfront.net/downloads/boreal.zip",
-                                fun = "sf::read_sf",
-                                useSAcrs = TRUE,
-                                studyArea = west,
-                                filename2 = NULL,
-                                userTags = c("stable", currentModule(sim), "NorthAmericanBoreal")) %>%
-      as("Spatial") %>%
-      aggregate() %>%
-      spatialEco::remove.holes()
+  ## raster to match
+  if (!suppliedElsewhere("rasterToMatch", sim)) {
+    sim$rasterToMatch <- Cache(
+      LandR::prepInputsLCC,
+      year = 2005,
+      destinationPath = dPath,
+      studyArea = sim$studyArea
+    )
   }
 
   ## stand age map
   if (!suppliedElsewhere("standAgeMap", sim)) {
-    sim$standAgeMap <- amc::loadkNNageMap(path = dPath,
-                                          url = na.omit(extractURL("standAgeMap")),
-                                          studyArea = sim$studyAreaLarge,
-                                          userTags = c("stable", currentModule(sim)))
+    sim$standAgeMap <- LandR::prepInputsStandAgeMap(
+      ageUrl = na.omit(extractURL("standAgeMap")),
+      destinationPath = dPath,
+      studyArea = sim$studyArea,
+      rasterToMatch = sim$rasterToMatch,
+      userTags = c("stable", currentModule(sim)) ## TODO: does this need rasterToMatch? it IS rtm!
+    )
     sim$standAgeMap[] <- asInteger(sim$standAgeMap[])
-  }
-
-  ## raster to match
-  if (!suppliedElsewhere("rasterToMatch", sim)) {
-    sim$rasterToMatch <- sim$standAgeMap
   }
 
   ## stand volumes
