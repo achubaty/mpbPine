@@ -137,6 +137,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
   ## stand age map
   if (!suppliedElsewhere("standAgeMap", sim)) {
     sim$standAgeMap <- LandR::prepInputsStandAgeMap(
+      startTime = 2010,
       ageUrl = na.omit(extractURL("standAgeMap")),
       destinationPath = dPath,
       studyArea = sim$studyArea,
