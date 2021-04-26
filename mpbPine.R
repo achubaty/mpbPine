@@ -33,7 +33,7 @@ defineModule(sim, list(
     defineParameter(".useCache", "logical", FALSE, NA, NA,
                     desc = "Should this entire module be run with caching activated?")
   ),
-  inputObjects = bind_rows(
+  inputObjects = bindrows(
     expectsInput("mpbGrowthDT", "data.table",
                  desc = "Current MPB attack map (number of red attacked trees).",
                  sourceURL = NA),
@@ -75,7 +75,7 @@ defineModule(sim, list(
                  desc = "Additional documentation for kNN datasets.",
                  sourceURL = "http://tree.nfis.org/NFI_and_kNN_Mapping_20160628.docx")
   ),
-  outputObjects = bind_rows(
+  outputObjects = bindrows(
     createsOutput("pineDT", "data.table", "Proportion cover etc. by species (lodgepole and jack pine)."),
     createsOutput("pineMap", "RasterLayer", "Percent cover maps by species (lodgepole and jack pine).")
   )
