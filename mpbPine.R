@@ -18,6 +18,10 @@ defineModule(sim, list(
                     desc = "Should high memory-usage steps be skipped? Useful for running on laptops."),
     defineParameter("sppEquivCol", "character", "Boreal", NA, NA,
                     desc = "The column in sim$specieEquivalency data.table to use as a naming convention"),
+    defineParameter("simplifyPines", "logical", TRUE, NA, NA,
+                    desc = paste0("A test evaluating whether one of the pines represents > 90% of the abundance. If it ",
+                    "does, and this parameter is TRUE, then the two pines will be collapsed into one species, ",
+                    "labelled with the dominmant species name.")),
     defineParameter(".maxMemory", "numeric", 1e+9, NA, NA,
                     "Used to set the 'maxmemory' raster option. See '?rasterOptions'."),
     defineParameter(".plotInitialTime", "numeric", start(sim), NA, NA,
@@ -194,6 +198,27 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
                          cachePath = cachePath(sim),
                          userTags = c(cacheTags, "speciesLayers"))
   }
+  if (!P(sim)$lowMemory) {
+    sim$pineMap[] <- sim$pineMap[]
+  }
+
+  if (nlayers(sim$pineMap)) {
+    pinuTotal <- list()
+    pinuTotal[[1]] <- sum(sim$pineMap[[sim$sppEquiv$KNN[1]]][], na.rm = T)
+    pinuTotal[[2]] <- sum(sim$pineMap[[sim$sppEquiv$KNN[2]]][], na.rm = T)
+    whGreater <- pinuTotal[[1]] < pinuTotal[[2]]
+    ratioOfPines <- pinuTotal[[whGreater + 2]]/pinuTotal[[whGreater + 1]]
+    if (ratioOfPines < 0.1 && !isFALSE(P(sim)$simplifyPines)) {
+
+      message(sim$sppEquiv$KNN[[whGreater + 1]], " represents ", round((1 - ratioOfPines) * 100, 0),
+              "% of the pine abundance; ",
+              "collapsing all pine into 1 species (",sim$sppEquiv$KNN[[whGreater + 1]],"). ",
+              " To prevent this, set simplifyPines parameter to FALSE")
+    }
+    sim$pineMap <- sum(sim$pineMap)
+    names(sim$pineMap) <- sim$sppEquiv$KNN[[whGreater + 1]]
+  }
+
 
   return(invisible(sim))
 }
@@ -202,8 +227,9 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
 
 importMap <- function(sim) {
   ## create data.table version
+  pctPine <- if (nlayers(sim$pineMap) > 1) sum(sim$pineMap)[] else sim$pineMap[]
   sim$pineDT <- data.table(ID = 1L:ncell(sim$pineMap), ## TODO: use sppEquivNames
-                           PROPPINE = (sim$pineMap[["Pinu_Ban"]][] + sim$pineMap[["Pinu_Con"]][]) / 100) # use proportion
+                           PROPPINE = pctPine / 100) # use proportion
   sim$pineDT[, NUMTREES := PROPPINE * 1125 * prod(res(sim$pineMap)) / 100^2]
   ## NOTE: 1125 is mean stems/ha for pine stands, per Whitehead & Russo (2005), Cooke & Carroll (2017)
 
