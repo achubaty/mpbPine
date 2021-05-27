@@ -149,7 +149,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
       destinationPath = dPath,
       studyArea = sim$studyArea,
       rasterToMatch = sim$rasterToMatch,
-      userTags = c("stable", currentModule(sim)) ## TODO: does this need rasterToMatch? it IS rtm!
+      userTags = c("stable", currentModule(sim))
     )
     sim$standAgeMap[] <- asInteger(sim$standAgeMap[])
   }
@@ -203,12 +203,11 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
     if (any(grep("layer", names(sim$pineMap) )))
       names(sim$pineMap) <- sim$sppEquiv$KNN
     pinuTotal <- list()
-    pinuTotal[[1]] <- sum(sim$pineMap[[sim$sppEquiv$KNN[1]]][], na.rm = T)
-    pinuTotal[[2]] <- sum(sim$pineMap[[sim$sppEquiv$KNN[2]]][], na.rm = T)
+    pinuTotal[[1]] <- sum(sim$pineMap[[sim$sppEquiv$KNN[1]]][], na.rm = TRUE)
+    pinuTotal[[2]] <- sum(sim$pineMap[[sim$sppEquiv$KNN[2]]][], na.rm = TRUE)
     whGreater <- pinuTotal[[1]] < pinuTotal[[2]]
     ratioOfPines <- pinuTotal[[whGreater + 2]]/pinuTotal[[whGreater + 1]]
     if (ratioOfPines < 0.1 && !isFALSE(P(sim)$simplifyPines)) {
-
       message(sim$sppEquiv$KNN[[whGreater + 1]], " represents ", round((1 - ratioOfPines) * 100, 0),
               "% of the pine abundance; ",
               "collapsing all pine into 1 species (",sim$sppEquiv$KNN[[whGreater + 1]],"). ",
