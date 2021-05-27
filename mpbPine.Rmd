@@ -4,7 +4,7 @@ author:
   - "Alex M. Chubaty"
   - "Barry J. Cooke"
   - "Eliot J. B. McIntire"
-date: "February 5, 2018"
+date: "May 25, 2021"
 output:
   html_document:
     toc: true
@@ -15,6 +15,8 @@ bibliography:
 ---
 
 ### `mpbPine`
+
+<!-- TODO: update description for AB and SK inventory maps; update with param and in/output tables -->
 
 Remote sensed data from Canada’s National Forest Inventory (NFI) provide the basis for the pine layers used in this module.
 These data were used by @Beaudoin:2014cf to map coverage of several forest species using a k-nearest  (kNN) method to generate national 250m x 250m pixel resolution maps.

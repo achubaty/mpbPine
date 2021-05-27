@@ -42,10 +42,8 @@ defineModule(sim, list(
                  desc = "Current MPB attack map (number of red attacked trees).",
                  sourceURL = NA),
     expectsInput("pineMap", "RasterStack",
-                 desc = "Percent cover maps by species (lodgepole and jack pine).",
-                 sourceURL = paste0("http://ftp.maps.canada.ca/pub/nrcan_rncan/Forests_Foret/",
-                                    "canada-forests-attributes_attributs-forests-canada/",
-                                    "2001-attributes_attributs-2001/")),
+                 desc = "Pine percent cover maps (lodgepole and jack pine).",
+                 sourceURL = paste0("")),
     expectsInput("rasterToMatch", "RasterLayer",
                  desc = "if not supplied, will default to standAgeMap", # TODO: description needed
                  sourceURL = NA),
@@ -65,16 +63,19 @@ defineModule(sim, list(
                                     "NFI_MODIS250m_2001_kNN_Structure_Stand_Age_v1.tif")),
     expectsInput("studyArea", "SpatialPolygons",
                  desc = "The study area to which all maps will be cropped and reprojected.",
-                 sourceURL = NA), ## TODO: link to Google Drive
-    expectsInput(NA, NA,
-                 desc = "Additional documentation for kNN datasets.",
-                 sourceURL = "http://tree.nfis.org/cjfr-2013-0401suppl.pdf"),
-    expectsInput(NA, NA,
-                 desc = "Additional documentation for kNN datasets.",
-                 sourceURL = "http://tree.nfis.org/FR_NFI_and_kNN_Mapping_20160628.docx"),
-    expectsInput(NA, NA,
-                 desc = "Additional documentation for kNN datasets.",
-                 sourceURL = "http://tree.nfis.org/NFI_and_kNN_Mapping_20160628.docx")
+                 sourceURL = NA),
+    expectsInput("studyAreaLarge", "SpatialPolygons",
+                 desc = "The larger study area to use for spread parameter estimation.", ## TODO: not used yet; will use with LandR
+                 sourceURL = NA),
+    # expectsInput(NA, NA,
+    #              desc = "Additional documentation for kNN datasets.",
+    #              sourceURL = "http://tree.nfis.org/cjfr-2013-0401suppl.pdf"),
+    # expectsInput(NA, NA,
+    #              desc = "Additional documentation for kNN datasets.",
+    #              sourceURL = "http://tree.nfis.org/FR_NFI_and_kNN_Mapping_20160628.docx"),
+    # expectsInput(NA, NA,
+    #              desc = "Additional documentation for kNN datasets.",
+    #              sourceURL = "http://tree.nfis.org/NFI_and_kNN_Mapping_20160628.docx")
   ),
   outputObjects = bindrows(
     createsOutput("pineDT", "data.table", "Proportion cover etc. by species (lodgepole and jack pine)."),
@@ -114,27 +115,29 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
 
 .inputObjects <- function(sim) {
   cacheTags <- c(currentModule(sim), "function:.inputObjects")
+  cPath <- cachePath(sim)
   dPath <- asPath(getOption("reproducible.destinationPath", dataPath(sim)), 1)
   if (getOption("LandR.verbose", TRUE) > 0)
     message(currentModule(sim), ": using dataPath '", dPath, "'.")
 
-  #mod$prj <- paste("+proj=aea +lat_1=47.5 +lat_2=54.5 +lat_0=0 +lon_0=-113",
-  #                 "+x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs +ellps=GRS80 +towgs84=0,0,0")
-  mod$prj <- paste("+proj=lcc +lat_1=49 +lat_2=77 +lat_0=0 +lon_0=-95",
-                   "+x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  # mod$targetCRS <- paste("+proj=aea +lat_1=47.5 +lat_2=54.5 +lat_0=0 +lon_0=-113",
+  #                        "+x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs +ellps=GRS80 +towgs84=0,0,0")
+  mod$targetCRS <- paste("+proj=lcc +lat_1=49 +lat_2=77 +lat_0=0 +lon_0=-95",
+                         "+x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
 
   ## load study area
   if (!suppliedElsewhere("studyArea")) {
-    sim$studyArea <- amc::loadStudyArea(dataPath(sim), "studyArea.kml", mod$prj)
+    sim$studyArea <- mpbStudyArea(ecoregions = c(112, 120, 122, 124, 126), mod$targetCRS,
+                                  cPath, dPath)
   }
 
   ## raster to match
   if (!suppliedElsewhere("rasterToMatch", sim)) {
     sim$rasterToMatch <- Cache(
       LandR::prepInputsLCC,
-      year = 2005,
+      year = 2005, ## TODO: use 2010
       destinationPath = dPath,
-      studyArea = sim$studyArea
+      studyArea = sf::as_Spatial(sim$studyArea)
     )
   }
 
@@ -151,26 +154,6 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
     sim$standAgeMap[] <- asInteger(sim$standAgeMap[])
   }
 
-  ## stand volumes
-  # if (!suppliedElsewhere("standVolumeMap", sim)) {
-  #   standVolMapFilename <- file.path(dPath, "NFI_MODIS250m_kNN_Structure_Volume_Total_v0.tif")
-  #   sim$standVolMap <- Cache(prepInputs,
-  #                            targetFile = basename(standVolMapFilename),
-  #                            archive = asPath(c("kNN-StructureStandVolume.tar",
-  #                                               "NFI_MODIS250m_kNN_Structure_Volume_Total_v0.zip")),
-  #                            destinationPath = dPath,
-  #                            url = na.omit(extractURL("standAgeMap")),
-  #                            fun = "raster::raster",
-  #                            studyArea = sim$studyAreaLarge,
-  #                            rasterToMatch = sim$rasterToMatch,
-  #                            method = "bilinear",
-  #                            datatype = "INT2U",
-  #                            filename2 = paste0(tools::file_path_sans_ext(basename(standVolMapFilename)), "_cropped"),
-  #                            overwrite = TRUE,
-  #                            userTags = c("stable", currentModule(sim)))
-  #   sim$standVolMap[] <- asInteger(sim$standVolMap[])
-  # }
-
   if (!suppliedElsewhere("sppEquiv", sim)) {
     data("sppEquivalencies_CA", package = "LandR", envir = environment())
     sim$sppEquiv <- as.data.table(sppEquivalencies_CA) %>%
@@ -186,39 +169,35 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
 
   ## percent pine layers
   if (!suppliedElsewhere(sim$pineMap)) {
-    message("Checking for kNN-Species data layers...")
-    sim$pineMap <- Cache(loadkNNSpeciesLayers,
-                         dPath = dPath,
-                         rasterToMatch = sim$rasterToMatch,
-                         studyArea = sim$studyAreaLarge,
-                         sppEquiv = sim$sppEquiv,
-                         knnNamesCol = "KNN",
-                         sppEquivCol = P(sim)$sppEquivCol,
-                         url = na.omit(extractURL("pineMap")),
-                         cachePath = cachePath(sim),
-                         userTags = c(cacheTags, "speciesLayers"))
+    url_AB <- "https://drive.google.com/file/d/15EzncjIR_dn5v6hruoVbsUQVF706nTEL/"
+    AB <- Cache(prepInputs,
+                url = url_AB,
+                targetFile = "AB_PineVolumes_Lambert.gdb", ## TODO: not extracting correctly from zip. needs to be done manually :(
+                alsoExtract = NA,
+                archive = "AB_PineVolumes_Lambert.gdb.zip",
+                fun = "sf::st_read", layer = "OVERSTOREY_PINE", ## TODO: UNDERSTOREY_PINE?
+                overwrite = TRUE,
+                destinationPath = dPath,
+                cachePath = cPath) %>%
+      fasterize::fasterize(., raster = sim$rasterToMatch, field = "PCT_P")
+    AB <- AB * 10
+
+    url_SK <- "https://drive.google.com/file/d/1gpA9M4nhrnfIIvGQ7jcM9A7Fo-3MYpU1/"
+    SK <- Cache(prepInputs,
+                url = url_SK,
+                targetFile = "SK_INV_JPpct10_Lambert.tif",
+                alsoExtract = "similar",
+                fun = "raster::raster",
+                rasterToMatch = sim$rasterToMatch,
+                destinationPath = dPath,
+                cachePath = cPath)
+    SK <- SK * 10
+
+    sim$pineMap <- raster::mosaic(AB, SK, fun = mean, na.rm = TRUE)
   }
   if (!P(sim)$lowMemory) {
     sim$pineMap[] <- sim$pineMap[]
   }
-
-  if (nlayers(sim$pineMap)) {
-    pinuTotal <- list()
-    pinuTotal[[1]] <- sum(sim$pineMap[[sim$sppEquiv$KNN[1]]][], na.rm = T)
-    pinuTotal[[2]] <- sum(sim$pineMap[[sim$sppEquiv$KNN[2]]][], na.rm = T)
-    whGreater <- pinuTotal[[1]] < pinuTotal[[2]]
-    ratioOfPines <- pinuTotal[[whGreater + 2]]/pinuTotal[[whGreater + 1]]
-    if (ratioOfPines < 0.1 && !isFALSE(P(sim)$simplifyPines)) {
-
-      message(sim$sppEquiv$KNN[[whGreater + 1]], " represents ", round((1 - ratioOfPines) * 100, 0),
-              "% of the pine abundance; ",
-              "collapsing all pine into 1 species (",sim$sppEquiv$KNN[[whGreater + 1]],"). ",
-              " To prevent this, set simplifyPines parameter to FALSE")
-    }
-    sim$pineMap <- sum(sim$pineMap)
-    names(sim$pineMap) <- sim$sppEquiv$KNN[[whGreater + 1]]
-  }
-
 
   return(invisible(sim))
 }
