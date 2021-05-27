@@ -12,7 +12,7 @@ defineModule(sim, list(
   documentation = list("README.txt", "mpbPine.Rmd"),
   reqdPkgs = list("achubaty/amc@development", "data.table",
                   "PredictiveEcology/LandR@development",
-                  "magrittr", "quickPlot", "raster", "reproducible", "sp", "spatialEco"),
+                  "magrittr", "quickPlot", "raster", "PredictiveEcology/reproducible@testValidity (>= 1.2.7.9001)", "sp", "spatialEco"),
   parameters = rbind(
     defineParameter("lowMemory", "logical", FALSE, NA, NA,
                     desc = "Should high memory-usage steps be skipped? Useful for running on laptops."),
@@ -170,17 +170,19 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
   ## percent pine layers
   if (!suppliedElsewhere(sim$pineMap)) {
     url_AB <- "https://drive.google.com/file/d/15EzncjIR_dn5v6hruoVbsUQVF706nTEL/"
-    AB <- Cache(prepInputs,
-                url = url_AB,
-                targetFile = "AB_PineVolumes_Lambert.gdb", ## TODO: not extracting correctly from zip. needs to be done manually :(
-                alsoExtract = NA,
-                archive = "AB_PineVolumes_Lambert.gdb.zip",
-                fun = "sf::st_read", layer = "OVERSTOREY_PINE", ## TODO: UNDERSTOREY_PINE?
-                overwrite = TRUE,
-                destinationPath = dPath,
-                cachePath = cPath) %>%
-      fasterize::fasterize(., raster = sim$rasterToMatch, field = "PCT_P")
-    AB <- AB * 10
+    AB <- Cache(prepInputs_ABPine, url = url_AB, rasterToMatch = sim$rasterToMatch, layers = "OVERSTOREY_PINE")
+
+    # AB <- Cache(prepInputs,
+    #             url = url_AB,
+    #             # targetFile = "AB_PineVolumes_Lambert.gdb", ## TODO: not extracting correctly from zip. needs to be done manually :(
+    #             # alsoExtract = NA,
+    #             #archive = "AB_PineVolumes_Lambert.gdb.zip",
+    #             fun = "sf::st_read", layer = "OVERSTOREY_PINE", ## TODO: UNDERSTOREY_PINE?
+    #             overwrite = TRUE,
+    #             destinationPath = dPath,
+    #             cachePath = cPath) %>%
+    #   fasterize::fasterize(., raster = sim$rasterToMatch, field = "PCT_P")
+    AB[] <- AB[] * 10
 
     url_SK <- "https://drive.google.com/file/d/1gpA9M4nhrnfIIvGQ7jcM9A7Fo-3MYpU1/"
     SK <- Cache(prepInputs,
@@ -191,7 +193,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
                 rasterToMatch = sim$rasterToMatch,
                 destinationPath = dPath,
                 cachePath = cPath)
-    SK <- SK * 10
+    SK[] <- SK[] * 10
 
     sim$pineMap <- raster::mosaic(AB, SK, fun = mean, na.rm = TRUE)
   }
@@ -199,7 +201,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
     sim$pineMap[] <- sim$pineMap[]
   }
 
-  if (nlayers(sim$pineMap)) {
+  if (nlayers(sim$pineMap) > 1) {
     if (any(grep("layer", names(sim$pineMap) )))
       names(sim$pineMap) <- sim$sppEquiv$KNN
     pinuTotal <- list()
@@ -236,4 +238,28 @@ importMap <- function(sim) {
   sim$pineDT[is.na(PROPPINE), ':='(PROPPINE = 0.00, NUMTREES = 0.00)]
 
   return(invisible(sim))
+}
+
+
+prepInputs_ABPine <- function(url, rasterToMatch, layerNames, ...) {
+  fileInfo <- preProcess(url = url, archive = NA)
+  dirForExtract <- file.path(dirname(fileInfo$targetFilePath), rndstr(1))
+  out <- archive::archive_extract(fileInfo$targetFilePath,
+                                  dir = dirForExtract)
+
+  gdbName <- unique(dirname(out$path))[2]
+  origDir <- setwd(dirForExtract)
+  on.exit(setwd(origDir))
+  layerNames <- sf::st_layers(gdbName)$name
+  rtmCRS <- sf::st_crs(rasterToMatch)
+  for (y in layerNames[1]) {
+    co <- capture.output(pineMap <- sf::st_read(gdbName, layer = y))
+    pineMap <- st_transform(pineMap, rtmCRS)
+    pineMap <- st_cast(pineMap, "MULTIPOLYGON")
+    pineMap <- fixErrors(pineMap, testValidity = FALSE, useCache = FALSE)
+    rrr <- st_crop(pineMap, rasterToMatch)
+    rrr <- st_cast(rrr, "MULTIPOLYGON")
+    AB <- fasterize::fasterize(rrr, raster = rasterToMatch, field = "PCT_P")
+  }
+  return(AB)
 }
