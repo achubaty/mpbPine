@@ -170,7 +170,8 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
   ## percent pine layers
   if (!suppliedElsewhere(sim$pineMap)) {
     url_AB <- "https://drive.google.com/file/d/15EzncjIR_dn5v6hruoVbsUQVF706nTEL/"
-    AB <- Cache(prepInputs_ABPine, url = url_AB, rasterToMatch = sim$rasterToMatch, layers = "OVERSTOREY_PINE")
+    AB <- Cache(prepInputs_ABPine, url = url_AB, rasterToMatch = sim$rasterToMatch,
+                layers = "OVERSTOREY_PINE", maskWithRTM = TRUE)
 
     # AB <- Cache(prepInputs,
     #             url = url_AB,
@@ -191,6 +192,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
                 alsoExtract = "similar",
                 fun = "raster::raster",
                 rasterToMatch = sim$rasterToMatch,
+                maskWithRTM = TRUE,
                 destinationPath = dPath,
                 cachePath = cPath)
     SK[] <- SK[] * 10
@@ -259,6 +261,7 @@ prepInputs_ABPine <- function(url, rasterToMatch, layerNames, ...) {
     rrr <- st_crop(pineMap, rasterToMatch)
     rrr <- st_cast(rrr, "MULTIPOLYGON")
     AB <- fasterize::fasterize(rrr, raster = rasterToMatch, field = "PCT_P")
+    AB <- maskInputs(AB, rasterToMatch = rasterToMatch, studyArea = NULL, maskWithRTM = TRUE)
   }
   return(AB)
 }
