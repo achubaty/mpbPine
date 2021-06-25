@@ -135,5 +135,13 @@ Description of the module outputs.
 
 # Links to other modules
 
-Describe any anticipated linkages to other modules.
+Part of the Mountain Pine Beetle Red Top Growth Model, which evaluates short-run potential for MPB establishment, eruption, and spread.
+
+- `mpbMassAttacksData`
+- `mpbClimateData`
+- `mpbPine`
+- `mpbRedTopSpread`
+
+Future linkages include the `LandR` Biomass suite of modules to simulate/forecast forest vegetation dynamics, and the `fireSense` wildfire simulation model.
+
 # References
