@@ -114,6 +114,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
 }
 
 .inputObjects <- function(sim) {
+
   cacheTags <- c(currentModule(sim), "function:.inputObjects")
   cPath <- cachePath(sim)
   dPath <- asPath(getOption("reproducible.destinationPath", dataPath(sim)), 1)
@@ -170,9 +171,10 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
   ## percent pine layers
   if (!suppliedElsewhere(sim$pineMap)) {
     url_AB <- "https://drive.google.com/file/d/15EzncjIR_dn5v6hruoVbsUQVF706nTEL/"
+    opts <- options(reproducible.useTerra = TRUE)
+    on.exit(options(opts), add = TRUE)
     AB <- Cache(prepInputs_ABPine, url = url_AB, rasterToMatch = sim$rasterToMatch,
-                layers = "OVERSTOREY_PINE", maskWithRTM = TRUE)
-
+                layers = "OVERSTOREY_PINE", maskWithRTM = TRUE, fun = "sf::st_as_sf")
     # AB <- Cache(prepInputs,
     #             url = url_AB,
     #             # targetFile = "AB_PineVolumes_Lambert.gdb", ## TODO: not extracting correctly from zip. needs to be done manually :(
@@ -186,6 +188,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
     AB[] <- AB[] * 10
 
     url_SK <- "https://drive.google.com/file/d/1gpA9M4nhrnfIIvGQ7jcM9A7Fo-3MYpU1/"
+    options(opts) # this next still not working with postProcessTerra (Eliot Feb 28, 2022)
     SK <- Cache(prepInputs,
                 url = url_SK,
                 targetFile = "SK_INV_JPpct10_Lambert.tif",
@@ -243,12 +246,12 @@ importMap <- function(sim) {
 
 
 prepInputs_ABPine <- function(url, rasterToMatch, layerNames, ...) {
-  fileInfo <- preProcess(url = url, archive = NA)
+  fileInfo <- preProcess(url = url, archive = NA, ...)
   dirForExtract <- file.path(dirname(fileInfo$targetFilePath), rndstr(1))
   out <- archive::archive_extract(fileInfo$targetFilePath,
                                   dir = dirForExtract)
 
-  gdbName <- unique(dirname(out$path))[2]
+  gdbName <- unique(dirname(out))[2]
   origDir <- setwd(dirForExtract)
   on.exit(setwd(origDir))
   layerNames <- sf::st_layers(gdbName)$name
