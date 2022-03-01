@@ -10,7 +10,7 @@ defineModule(sim, list(
   timeunit = "year",
   citation = list("citation.bib"),
   documentation = list("README.txt", "mpbPine.Rmd"),
-  reqdPkgs = list("achubaty/amc@development", "data.table",
+  reqdPkgs = list("achubaty/amc@development", "data.table", "jimhester/archive",
                   "PredictiveEcology/LandR@development", "PredictiveEcology/mpbutils (>= 0.1.2)",
                   "magrittr", "quickPlot", "raster", "PredictiveEcology/reproducible@testValidity (>= 1.2.7.9001)", "sp", "spatialEco"),
   parameters = rbind(
