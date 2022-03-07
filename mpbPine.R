@@ -99,9 +99,14 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
     "plot" = {
       # ! ----- EDIT BELOW ----- ! #
       # do stuff for this event
-      pineMap <- sum(sim$pineMap)
-      Plot(pineMap, title = "Percent Pine")
-      Plot(sim$studyArea, addTo = "pineMap", gp = gpar(col = "black", fill = 0), title = "")
+      pineMap <- if (raster::nlayers(sim$pineMap) > 1)
+        sum(sim$pineMap) else sim$pineMap
+      plotPineAndSA <- function(pine, sa, title) {
+        aa <- terra::plot(pineMap, main = title)
+        aa <- terra::plot(sim$studyArea, add = TRUE)
+      }
+      Plots(pineMap, title = "Percent Pine", sa = sim$studyArea, fn = plotPineAndSA)
+      # Plots(sim$studyArea, addTo = "pineMap", gp = gpar(col = "black", fill = 0), title = "")
 
       # schedule future event(s)
       sim <- scheduleEvent(sim, time(sim) + P(sim)$.plotInterval, "mpbPine", "plot")
