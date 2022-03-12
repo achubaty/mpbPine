@@ -16,6 +16,9 @@ defineModule(sim, list(
   parameters = rbind(
     defineParameter("lowMemory", "logical", FALSE, NA, NA,
                     desc = "Should high memory-usage steps be skipped? Useful for running on laptops."),
+    defineParameter("stemsPerHaAvg", "integer", 1125, NA, NA,
+                    desc = "The average number of pine stems per ha in the study area. ",
+                    "Taken from Whitehead & Russo (2005), Cooke & Carroll (2017)"),
     defineParameter("sppEquivCol", "character", "Boreal", NA, NA,
                     desc = "The column in sim$specieEquivalency data.table to use as a naming convention"),
     defineParameter("simplifyPines", "logical", TRUE, NA, NA,
@@ -78,8 +81,8 @@ defineModule(sim, list(
     #              sourceURL = "http://tree.nfis.org/NFI_and_kNN_Mapping_20160628.docx")
   ),
   outputObjects = bindrows(
-    createsOutput("pineDT", "data.table", "Proportion cover etc. by species (lodgepole and jack pine)."),
-    createsOutput("pineMap", "RasterLayer", "Percent cover maps by species (lodgepole and jack pine).")
+    createsOutput("pineDT", "data.table", "Proportion cover etc. by species (lodgepole and jack pine).")
+    # createsOutput("pineMap", "RasterLayer", "Percent cover maps by species (lodgepole and jack pine).")
   )
 ))
 
@@ -91,7 +94,32 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
     "init" = {
       # do stuff for this event
       sim <- importMap(sim)
-
+      numLayersInPM <- nlayers(sim$pineMap)
+      pineSpeciesNames <- c("Pinu_con" , "Pinu_ban")
+      if (!is.null(sim$sppEquiv)) {
+        # check this again because it may not have existed in the .inputObjects
+        if (numLayersInPM == 1) {
+          colInSppEquiv <- equivalentNameColumn(pineSpeciesNames, sim$sppEquiv)
+          sim$sppEquiv[get(colInSppEquiv) %in% pineSpeciesNames, MPB := "Pinu"]
+        }
+      }
+      if (!is.null(sim$speciesLayers)) {
+        pinesInSpeciesLayers <- equivalentName(pineSpeciesNames, sim$sppEquiv,
+                                            equivalentNameColumn(names(sim$speciesLayers), sim$sppEquiv))
+        numLayersInSL <- nlayers(sim$speciesLayers[[pinesInSpeciesLayers]])
+        if (numLayersInSL != numLayersInPM) {
+          if (numLayersInPM == 1 && numLayersInSL == 2) {
+            message("Squashing the sim$speciesLayers pine layers into one species because sim$pineMaps has only one layer")
+            whLayerMax <- which.max(apply(sim$speciesLayers[[pinesInSpeciesLayers]][], 2, sum, na.rm = TRUE))
+            message("The pine layer will show up as ", pinesInSpeciesLayers[whLayerMax])
+            whLayerDrop <- which(names(sim$speciesLayers) %in% pinesInSpeciesLayers[-whLayerMax])
+            sim$speciesLayers <- raster::dropLayer(sim$speciesLayers, whLayerDrop)
+            sim$speciesLayers[[pinesInSpeciesLayers[whLayerMax]]][] <- sim$pineMap[]
+          }
+        } else {
+          browser() # This is not ready yet
+        }
+      }
       # schedule future event(s)
       sim <- scheduleEvent(sim, P(sim)$.plotInitialTime, "mpbPine", "plot", .last() - 1)
       sim <- scheduleEvent(sim, P(sim)$.saveInitialTime, "mpbPine", "save", .last())
@@ -160,7 +188,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
     sim$standAgeMap[] <- asInteger(sim$standAgeMap[])
   }
 
-  if (!suppliedElsewhere("sppEquiv", sim)) {
+  if (!(suppliedElsewhere("sppEquiv", sim) || suppliedElsewhere("sppNameVector", sim))) {
     data("sppEquivalencies_CA", package = "LandR", envir = environment())
     sim$sppEquiv <- as.data.table(sppEquivalencies_CA) %>%
       .[KNN %in% c("Pinu_Ban", "Pinu_Con", "Pinu_Con_Lat"), ] ## NOTE!
@@ -212,6 +240,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
   }
 
   if (nlayers(sim$pineMap) > 1) {
+    browser() # THis needs addressing as next lines are broken -- there will likely be more species than just pine
     if (any(grep("layer", names(sim$pineMap) )))
       names(sim$pineMap) <- sim$sppEquiv$KNN
     pinuTotal <- list()
@@ -229,7 +258,6 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
     names(sim$pineMap) <- sim$sppEquiv$KNN[[whGreater + 1]]
   }
 
-
   return(invisible(sim))
 }
 
@@ -240,8 +268,7 @@ importMap <- function(sim) {
   pctPine <- if (nlayers(sim$pineMap) > 1) sum(sim$pineMap)[] else sim$pineMap[]
   sim$pineDT <- data.table(ID = 1L:ncell(sim$pineMap), ## TODO: use sppEquivNames
                            PROPPINE = pctPine / 100) # use proportion
-  sim$pineDT[, NUMTREES := PROPPINE * 1125 * prod(res(sim$pineMap)) / 100^2]
-  ## NOTE: 1125 is mean stems/ha for pine stands, per Whitehead & Russo (2005), Cooke & Carroll (2017)
+  sim$pineDT[, NUMTREES := PROPPINE * P(sim)$stemsPerHaAvg * prod(res(sim$pineMap)) / 100^2]
 
   setkey(sim$pineDT, ID)
   sim$pineDT[is.na(PROPPINE), ':='(PROPPINE = 0.00, NUMTREES = 0.00)]
