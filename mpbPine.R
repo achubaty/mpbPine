@@ -16,6 +16,9 @@ defineModule(sim, list(
   parameters = rbind(
     defineParameter("lowMemory", "logical", FALSE, NA, NA,
                     desc = "Should high memory-usage steps be skipped? Useful for running on laptops."),
+    defineParameter("pineSpToUse", "character", c("Pinu_con" , "Pinu_ban"), NA, NA,
+                    desc = "The 1 or 2 or 3 species to use as possible host for MPB. There are currently",
+                    " no differentiation by species"),
     defineParameter("stemsPerHaAvg", "integer", 1125, NA, NA,
                     desc = "The average number of pine stems per ha in the study area. ",
                     "Taken from Whitehead & Russo (2005), Cooke & Carroll (2017)"),
@@ -95,7 +98,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
       # do stuff for this event
       sim <- importMap(sim)
       numLayersInPM <- nlayers(sim$pineMap)
-      pineSpeciesNames <- c("Pinu_con" , "Pinu_ban")
+      pineSpeciesNames <- P(sim)$pineSpToUse
       if (!is.null(sim$sppEquiv)) {
         # check this again because it may not have existed in the .inputObjects
         if (numLayersInPM == 1) {
