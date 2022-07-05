@@ -243,7 +243,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
   }
 
   if (nlayers(sim$pineMap) > 1) {
-    browser() # THis needs addressing as next lines are broken -- there will likely be more species than just pine
+    browser() ## TODO: next lines are broken -- there will likely be more species than just pine
     if (any(grep("layer", names(sim$pineMap) )))
       names(sim$pineMap) <- sim$sppEquiv$KNN
     pinuTotal <- list()
