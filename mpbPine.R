@@ -96,6 +96,9 @@ defineModule(sim, list(
 doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
   switch(eventType,
     "init" = {
+      cPath <- cachePath(sim)
+      dPath <- asPath(getOption("reproducible.destinationPath", dataPath(sim)), 1)
+
       # do stuff for this event
 
       ## percent pine layers
