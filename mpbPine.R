@@ -106,7 +106,8 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
       opts <- options(reproducible.useTerra = TRUE)
       on.exit(options(opts), add = TRUE)
       AB <- Cache(prepInputs_ABPine, url = url_AB, rasterToMatch = sim$rasterToMatch,
-                  layers = "OVERSTOREY_PINE", maskWithRTM = TRUE, fun = "sf::st_as_sf")
+                  layers = "OVERSTOREY_PINE", destinationPath = inputPath(sim),
+                  maskWithRTM = TRUE, fun = "sf::st_as_sf")
       AB[] <- AB[] * 10
 
       url_SK <- "https://drive.google.com/file/d/1gpA9M4nhrnfIIvGQ7jcM9A7Fo-3MYpU1/"
@@ -272,14 +273,15 @@ importMap <- function(sim) {
   return(invisible(sim))
 }
 
-prepInputs_ABPine <- function(url, rasterToMatch, layerNames, ...) {
-  fileInfo <- preProcess(url = url, archive = NA, ...)
-  dirForExtract <- file.path(dirname(fileInfo$targetFilePath), rndstr(1))
+prepInputs_ABPine <- function(url, rasterToMatch, layerNames, destinationPath, ...) {
+  fileInfo <- preProcess(url = url, archive = NA, destinationPath = destinationPath, ...)
+  dirForExtract <- file.path(destinationPath, "Pine_data_AB")
   out <- archive::archive_extract(fileInfo$targetFilePath, dir = dirForExtract)
 
   gdbName <- unique(dirname(out))[2]
   origDir <- setwd(dirForExtract)
   on.exit(setwd(origDir))
+
   layerNames <- sf::st_layers(gdbName)$name
   rtmCRS <- sf::st_crs(rasterToMatch)
   for (y in layerNames[1]) {
@@ -291,7 +293,7 @@ prepInputs_ABPine <- function(url, rasterToMatch, layerNames, ...) {
     pineMap <- fixErrors(pineMap, testValidity = FALSE, useCache = FALSE)
     rrr <- st_crop(pineMap, rasterToMatch)
     rrr <- st_cast(rrr, "MULTIPOLYGON")
-    AB <- fasterize::fasterize(rrr, raster = rasterToMatch, field = "PCT_P")
+    AB <- terra::rast(fasterize::fasterize(rrr, raster = raster::raster(rasterToMatch), field = "PCT_P"))
     AB <- maskInputs(AB, rasterToMatch = rasterToMatch, studyArea = NULL, maskWithRTM = TRUE)
   }
   return(AB)
