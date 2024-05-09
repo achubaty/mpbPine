@@ -13,7 +13,7 @@ defineModule(sim, list(
   reqdPkgs = list("achubaty/amc@development", "data.table", "jimhester/archive",
                   "PredictiveEcology/LandR@development", "PredictiveEcology/mpbutils (>= 0.1.2)",
                   "magrittr", "quickPlot", "raster",
-                  "PredictiveEcology/reproducible@testValidity (>= 1.2.7.9001)", "sp", "spatialEco"),
+                  "PredictiveEcology/reproducible@development (>= 1.2.7.9001)", "sp", "spatialEco"),
   parameters = rbind(
     defineParameter("lowMemory", "logical", FALSE, NA, NA,
                     desc = "Should high memory-usage steps be skipped? Useful for running on laptops."),
