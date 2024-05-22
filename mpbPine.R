@@ -105,9 +105,22 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
       url_AB <- "https://drive.google.com/file/d/15EzncjIR_dn5v6hruoVbsUQVF706nTEL/"
       opts <- options(reproducible.useTerra = TRUE)
       on.exit(options(opts), add = TRUE)
-      AB <- Cache(prepInputs_ABPine, url = url_AB, rasterToMatch = sim$rasterToMatch,
-                  layers = "OVERSTOREY_PINE", destinationPath = inputPath(sim),
-                  maskWithRTM = TRUE, fun = "sf::st_as_sf")
+
+      dirForExtract <- file.path(inputPath(sim), "Pine_data_AB")
+
+      AB <- prepInputs(url = url_AB,
+                       targetFile = "AB_PineVolumes_Lambert.gdb",
+                       rasterizeMask = rasterizeMask,
+                       layers = "OVERSTOREY_PINE", destinationPath = dirForExtract,
+                       rasterToMatch = sim$rasterToMatch,
+                       useCache = FALSE,
+                       fun = rasterizeMask(targetFile, layer = layers, rasterToMatch = rasterToMatch)
+      ) |> Cache()
+
+
+      # AB <- Cache(prepInputs_ABPine, url = url_AB, rasterToMatch = sim$rasterToMatch,
+      #             layers = "OVERSTOREY_PINE", destinationPath = inputPath(sim),
+      #             maskWithRTM = TRUE, fun = "sf::st_as_sf")
       AB[] <- AB[] * 10
 
       url_SK <- "https://drive.google.com/file/d/1gpA9M4nhrnfIIvGQ7jcM9A7Fo-3MYpU1/"
@@ -116,14 +129,16 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
                   url = url_SK,
                   targetFile = "SK_INV_JPpct10_Lambert.tif",
                   alsoExtract = "similar",
-                  fun = "raster::raster",
+                  rastTimes10 = rastTimes10,
+                  fun = rastTimes10(targetFile),
                   rasterToMatch = sim$rasterToMatch,
                   maskWithRTM = TRUE,
                   destinationPath = dPath,
                   cachePath = cPath)
-      SK[] <- SK[] * 10
+      # SK[] <- SK[] * 10
 
-      sim$pineMap <- raster::mosaic(AB, SK, fun = mean, na.rm = TRUE)
+      browser()
+      sim$pineMap <- terra::mosaic(AB, SK, fun = "mean", na.rm = TRUE)
 
       if (!P(sim)$lowMemory) {
         sim$pineMap[] <- sim$pineMap[]
@@ -273,28 +288,55 @@ importMap <- function(sim) {
   return(invisible(sim))
 }
 
-prepInputs_ABPine <- function(url, rasterToMatch, layerNames, destinationPath, ...) {
-  fileInfo <- preProcess(url = url, archive = NA, destinationPath = destinationPath, ...)
+prepInputs_ABPine <- function(url, rasterToMatch, layers, destinationPath, ...) {
   dirForExtract <- file.path(destinationPath, "Pine_data_AB")
-  out <- archive::archive_extract(fileInfo$targetFilePath, dir = dirForExtract)
 
-  gdbName <- unique(dirname(out))[2]
-  origDir <- setwd(dirForExtract)
-  on.exit(setwd(origDir))
+  AB <- prepInputs(url = url,
+                    destinationPath = dirForExtract,
+                    targetFile = "AB_PineVolumes_Lambert.gdb",
+                    rasterizeMask = rasterizeMask,
+                    layers = layers,
+                    rasterToMatch = rasterToMatch,
+                    useCache = FALSE,
+                    fun = rasterizeMask(targetFile, layer = layers, rasterToMatch = rasterToMatch)
+  ) |> Cache()
 
-  layerNames <- sf::st_layers(gdbName)$name
-  rtmCRS <- sf::st_crs(rasterToMatch)
-  for (y in layerNames[1]) {
-    co <- capture.output({
-      pineMap <- sf::st_read(gdbName, layer = y)
-    })
-    pineMap <- st_transform(pineMap, rtmCRS)
-    pineMap <- st_cast(pineMap, "MULTIPOLYGON")
-    pineMap <- fixErrors(pineMap, testValidity = FALSE, useCache = FALSE)
-    rrr <- st_crop(pineMap, rasterToMatch)
-    rrr <- st_cast(rrr, "MULTIPOLYGON")
-    AB <- terra::rast(fasterize::fasterize(rrr, raster = raster::raster(rasterToMatch), field = "PCT_P"))
-    AB <- maskInputs(AB, rasterToMatch = rasterToMatch, studyArea = NULL, maskWithRTM = TRUE)
+  if (FALSE) { # old way without prepInputs
+    # fileInfo <- preProcess(url = url, archive = NA, destinationPath = destinationPath, ...)
+    # out <- archive::archive_extract(fileInfo$targetFilePath, dir = dirForExtract)
+
+    gdbName <- unique(dirname(out))[2]
+    origDir <- setwd(dirForExtract)
+    on.exit(setwd(origDir))
+
+    layerNames <- sf::st_layers(gdbName)$name
+    rtmCRS <- sf::st_crs(rasterToMatch)
+    for (y in layerNames[1]) {
+      co <- capture.output({
+        pineMap <- sf::st_read(gdbName, layer = y)
+      })
+      pineMap <- st_transform(pineMap, rtmCRS)
+      pineMap <- st_cast(pineMap, "MULTIPOLYGON")
+      pineMap <- fixErrors(pineMap, testValidity = FALSE, useCache = FALSE)
+      rrr <- st_crop(pineMap, rasterToMatch)
+      rrr <- st_cast(rrr, "MULTIPOLYGON")
+      AB <- terra::rast(fasterize::fasterize(rrr, raster = raster::raster(rasterToMatch), field = "PCT_P"))
+      AB <- maskInputs(AB, rasterToMatch = rasterToMatch, studyArea = NULL, maskWithRTM = TRUE)
+    }
   }
   return(AB)
+}
+
+
+rasterizeMask <- function(targetFile, rasterToMatch, layer) {
+  out <- sf::st_read(targetFile, layer = layer)
+  ras <- raster::raster(rasterToMatch)
+  AB <- terra::rast(fasterize::fasterize(out, raster = ras, field = "PCT_P"))
+  AB <- maskInputs(AB, rasterToMatch = rasterToMatch, studyArea = NULL, maskWithRTM = TRUE)
+}
+
+rastTimes10 <- function(ras) {
+  ras <- terra::rast(ras)
+  ras[] <- ras[] * 10
+  ras
 }
