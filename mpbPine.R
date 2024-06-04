@@ -137,14 +137,15 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
                   cachePath = cPath)
       # SK[] <- SK[] * 10
 
-      browser()
-      sim$pineMap <- terra::mosaic(AB, SK, fun = "mean", na.rm = TRUE)
+      sim$pineMap <- terra::rast(raster::mosaic(raster::raster(AB),
+                                    raster::raster(SK),
+                                    fun = "mean", na.rm = TRUE))
 
       if (!P(sim)$lowMemory) {
         sim$pineMap[] <- sim$pineMap[]
       }
 
-      if (nlayers(sim$pineMap) > 1) {
+      if (terra::nlyr(sim$pineMap) > 1) {
         browser() ## TODO: next lines are broken -- there will likely be more species than just pine
         if (any(grep("layer", names(sim$pineMap) )))
           names(sim$pineMap) <- sim$sppEquiv$KNN
@@ -164,7 +165,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
       }
 
       sim <- importMap(sim)
-      numLayersInPM <- nlayers(sim$pineMap)
+      numLayersInPM <- terra::nlyr(sim$pineMap)
       pineSpeciesNames <- P(sim)$pineSpToUse
       if (!is.null(sim$sppEquiv)) {
         # check this again because it may not have existed in the .inputObjects
@@ -176,7 +177,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
       if (!is.null(sim$speciesLayers)) {
         pinesInSpeciesLayers <- equivalentName(pineSpeciesNames, sim$sppEquiv,
                                             equivalentNameColumn(names(sim$speciesLayers), sim$sppEquiv))
-        numLayersInSL <- nlayers(sim$speciesLayers[[pinesInSpeciesLayers]])
+        numLayersInSL <- terra::nlyr(sim$speciesLayers[[pinesInSpeciesLayers]])
         if (numLayersInSL != numLayersInPM) {
           if (numLayersInPM == 1 && numLayersInSL == 2) {
             message("Squashing the sim$speciesLayers pine layers into one species because sim$pineMaps has only one layer")
@@ -197,7 +198,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
     "plot" = {
       # ! ----- EDIT BELOW ----- ! #
       # do stuff for this event
-      pineMap <- if (raster::nlayers(sim$pineMap) > 1)
+      pineMap <- if (terra::nlyr(sim$pineMap) > 1)
         sum(sim$pineMap) else sim$pineMap
       plotPineAndSA <- function(pine, sa, title) {
         aa <- terra::plot(pineMap, main = title)
@@ -277,7 +278,8 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
 
 importMap <- function(sim) {
   ## create data.table version
-  pctPine <- if (nlayers(sim$pineMap) > 1) sum(sim$pineMap)[] else sim$pineMap[]
+  pctPine <- if (terra::nlyr(sim$pineMap) > 1) sum(sim$pineMap) else sim$pineMap[]
+  pctPine <- as.vector(pctPine)
   sim$pineDT <- data.table(ID = 1L:ncell(sim$pineMap), ## TODO: use sppEquivNames
                            PROPPINE = pctPine / 100) # use proportion
   sim$pineDT[, NUMTREES := PROPPINE * P(sim)$stemsPerHaAvg * prod(res(sim$pineMap)) / 100^2]
