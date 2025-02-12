@@ -112,7 +112,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
                        layers = "OVERSTOREY_PINE", destinationPath = dirForExtract,
                        rasterToMatch = sim$rasterToMatch,
                        useCache = FALSE,
-                       fun = rasterizeMask(targetFile, layer = layers, rasterToMatch = rasterToMatch)
+                       fun = quote(rasterizeMask(targetFile, layer = layers, rasterToMatch = rasterToMatch))
       ) |> Cache()
 
 
@@ -123,16 +123,17 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
 
       url_SK <- "https://drive.google.com/file/d/1gpA9M4nhrnfIIvGQ7jcM9A7Fo-3MYpU1/"
       options(opts) # this next still not working with postProcessTerra (Eliot Feb 28, 2022)
-      SK <- Cache(prepInputs,
-                  url = url_SK,
+      SK <- Cache(
+prepInputs(url = url_SK,
                   targetFile = "SK_INV_JPpct10_Lambert.tif",
                   alsoExtract = "similar",
                   rastTimes10 = rastTimes10,
-                  fun = rastTimes10(targetFile),
+                  fun = quote(rastTimes10(targetFile)),
                   rasterToMatch = sim$rasterToMatch,
                   maskWithRTM = TRUE,
                   destinationPath = dPath,
                   cachePath = cPath)
+)
       # SK[] <- SK[] * 10
 
       # In terra version 1.7.71, this mosaic returns an error:
