@@ -73,12 +73,6 @@ defineModule(sim, list(
                  sourceURL = NA),
     # expectsInput(NA, NA,
     #              desc = "Additional documentation for kNN datasets.",
-    #              sourceURL = "http://tree.nfis.org/cjfr-2013-0401suppl.pdf"),
-    # expectsInput(NA, NA,
-    #              desc = "Additional documentation for kNN datasets.",
-    #              sourceURL = "http://tree.nfis.org/FR_NFI_and_kNN_Mapping_20160628.docx"),
-    # expectsInput(NA, NA,
-    #              desc = "Additional documentation for kNN datasets.",
     #              sourceURL = "http://tree.nfis.org/NFI_and_kNN_Mapping_20160628.docx")
   ),
   outputObjects = bindrows(
@@ -94,111 +88,9 @@ defineModule(sim, list(
 doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
   switch(eventType,
     "init" = {
-      cPath <- cachePath(sim)
-      dPath <- asPath(getOption("reproducible.destinationPath", dataPath(sim)), 1)
+      # cPath <- cachePath(sim)
+      sim <- getPineMaps(sim)
 
-      # do stuff for this event
-
-      ## percent pine layers
-      url_AB <- "https://drive.google.com/file/d/15EzncjIR_dn5v6hruoVbsUQVF706nTEL/"
-      opts <- options(reproducible.useTerra = TRUE)
-      on.exit(options(opts), add = TRUE)
-
-      dirForExtract <- file.path(inputPath(sim), "Pine_data_AB")
-
-      AB <- prepInputs(url = url_AB,
-                       targetFile = "AB_PineVolumes_Lambert.gdb",
-                       rasterizeMask = rasterizeMask,
-                       layers = "OVERSTOREY_PINE", destinationPath = dirForExtract,
-                       rasterToMatch = sim$rasterToMatch,
-                       useCache = FALSE,
-                       fun = quote(rasterizeMask(targetFile, layer = layers, rasterToMatch = rasterToMatch))
-      ) |> Cache()
-
-
-      # AB <- Cache(prepInputs_ABPine, url = url_AB, rasterToMatch = sim$rasterToMatch,
-      #             layers = "OVERSTOREY_PINE", destinationPath = inputPath(sim),
-      #             maskWithRTM = TRUE, fun = "sf::st_as_sf")
-      AB[] <- AB[] * 10
-
-      url_SK <- "https://drive.google.com/file/d/1gpA9M4nhrnfIIvGQ7jcM9A7Fo-3MYpU1/"
-      options(opts) # this next still not working with postProcessTerra (Eliot Feb 28, 2022)
-      SK <- Cache(
-        prepInputs(url = url_SK,
-                  targetFile = "SK_INV_JPpct10_Lambert.tif",
-                  alsoExtract = "similar",
-                  rastTimes10 = rastTimes10,
-                  fun = quote(rastTimes10(targetFile)),
-                  rasterToMatch = sim$rasterToMatch,
-                  maskWithRTM = TRUE,
-                  destinationPath = dPath,
-                  cachePath = cPath)
-      )
-      # SK[] <- SK[] * 10
-
-      # In terra version 1.7.71, this mosaic returns an error:
-      #   Error : [sprc] list elementis a: logical -- the work around is to use `raster::mosaic`
-
-      sim$pineMap <- try(terra::mosaic(AB, SK, fun = "mean", na.rm = TRUE))
-      if (is(sim$pineMap, "try-error")) {
-        sim$pineMap <- {terra::rast(raster::mosaic(raster::raster(AB), raster::raster(SK),
-                                                  fun = "mean", na.rm = TRUE))} |>
-          Cache()
-      }
-
-      if (P(sim)$lowMemory) {
-        sim$pineMap <- writeRaster(sim$pineMap, filename = file.path(inputPath(sim), "pineMap_AB_SK.tif"),
-                                   overwrite = TRUE)
-      } else {
-        sim$pineMap[] <- sim$pineMap[]
-      }
-
-      if (nlyr(sim$pineMap) > 1) {
-        browser() ## TODO: next lines are broken -- there will likely be more species than just pine
-        if (any(grep("layer", names(sim$pineMap) )))
-          names(sim$pineMap) <- sim$sppEquiv$KNN
-        pinuTotal <- list()
-        pinuTotal[[1]] <- sum(sim$pineMap[[sim$sppEquiv$KNN[1]]][], na.rm = TRUE)
-        pinuTotal[[2]] <- sum(sim$pineMap[[sim$sppEquiv$KNN[2]]][], na.rm = TRUE)
-        whGreater <- pinuTotal[[1]] < pinuTotal[[2]]
-        ratioOfPines <- pinuTotal[[whGreater + 2]]/pinuTotal[[whGreater + 1]]
-        if (ratioOfPines < 0.1 && !isFALSE(P(sim)$simplifyPines)) {
-          message(sim$sppEquiv$KNN[[whGreater + 1]], " represents ", round((1 - ratioOfPines) * 100, 0),
-                  "% of the pine abundance; ",
-                  "collapsing all pine into 1 species (",sim$sppEquiv$KNN[[whGreater + 1]],"). ",
-                  " To prevent this, set simplifyPines parameter to FALSE")
-        }
-        sim$pineMap <- sum(sim$pineMap)
-        names(sim$pineMap) <- sim$sppEquiv$KNN[[whGreater + 1]]
-      }
-
-      sim <- importMap(sim)
-      numLayersInPM <- nlyr(sim$pineMap)
-      pineSpeciesNames <- P(sim)$pineSpToUse
-      if (!is.null(sim$sppEquiv)) {
-        # check this again because it may not have existed in the .inputObjects
-        if (numLayersInPM == 1) {
-          colInSppEquiv <- equivalentNameColumn(pineSpeciesNames, sim$sppEquiv)
-          sim$sppEquiv[get(colInSppEquiv) %in% pineSpeciesNames, MPB := "Pinu"]
-        }
-      }
-      if (!is.null(sim$speciesLayers)) {
-        pinesInSpeciesLayers <- equivalentName(pineSpeciesNames, sim$sppEquiv,
-                                            equivalentNameColumn(names(sim$speciesLayers), sim$sppEquiv))
-        numLayersInSL <- nlyr(sim$speciesLayers[[pinesInSpeciesLayers]])
-        if (numLayersInSL != numLayersInPM) {
-          if (numLayersInPM == 1 && numLayersInSL == 2) {
-            message("Squashing the sim$speciesLayers pine layers into one species because sim$pineMaps has only one layer")
-            whLayerMax <- which.max(apply(sim$speciesLayers[[pinesInSpeciesLayers]][], 2, sum, na.rm = TRUE))
-            message("The pine layer will show up as ", pinesInSpeciesLayers[whLayerMax])
-            whLayerDrop <- which(names(sim$speciesLayers) %in% pinesInSpeciesLayers[-whLayerMax])
-            sim$speciesLayers <- raster::dropLayer(sim$speciesLayers, whLayerDrop)
-            sim$speciesLayers[[pinesInSpeciesLayers[whLayerMax]]][] <- sim$pineMap[]
-          }
-        } else {
-          browser() # This is not ready yet
-        }
-      }
       # schedule future event(s)
       sim <- scheduleEvent(sim, P(sim)$.plotInitialTime, "mpbPine", "plot", .last() - 1)
       sim <- scheduleEvent(sim, P(sim)$.saveInitialTime, "mpbPine", "save", .last())
@@ -225,9 +117,118 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
   return(invisible(sim))
 }
 
+getPineMaps <- function(sim) {
+  dPath <- asPath(getOption("reproducible.destinationPath", dataPath(sim)), 1)
+
+  # do stuff for this event
+
+  ## percent pine layers
+  url_AB <- "https://drive.google.com/file/d/15EzncjIR_dn5v6hruoVbsUQVF706nTEL/"
+  opts <- options(reproducible.useTerra = TRUE)
+  on.exit(options(opts), add = TRUE)
+
+  dirForExtract <- file.path(dPath, "Pine_data_AB")
+
+  AB <- prepInputs(url = url_AB,
+                   targetFile = "AB_PineVolumes_Lambert.gdb",
+                   rasterizeMask = rasterizeMask,
+                   layers = "OVERSTOREY_PINE", destinationPath = dirForExtract,
+                   rasterToMatch = sim$rasterToMatch,
+                   useCache = FALSE,
+                   fun = quote(rasterizeMask(targetFile, layer = layers, rasterToMatch = rasterToMatch))
+  ) |> Cache(.functionName = paste0("prepInputs_AB_Pine"))
+
+
+  # AB <- Cache(prepInputs_ABPine, url = url_AB, rasterToMatch = sim$rasterToMatch,
+  #             layers = "OVERSTOREY_PINE", destinationPath = inputPath(sim),
+  #             maskWithRTM = TRUE, fun = "sf::st_as_sf")
+  AB[] <- AB[] * 10
+
+  url_SK <- "https://drive.google.com/file/d/1gpA9M4nhrnfIIvGQ7jcM9A7Fo-3MYpU1/"
+  options(opts) # this next still not working with postProcessTerra (Eliot Feb 28, 2022)
+  SK <- Cache(
+    prepInputs(url = url_SK,
+               targetFile = "SK_INV_JPpct10_Lambert.tif",
+               alsoExtract = "similar",
+               rastTimes10 = rastTimes10,
+               fun = quote(rastTimes10(targetFile)),
+               rasterToMatch = sim$rasterToMatch,
+               maskWithRTM = TRUE,
+               destinationPath = dPath),
+    # cachePath = cPath),
+    .functionName = paste0("prepInputs_SK_Pine")
+  )
+  # SK[] <- SK[] * 10
+
+  # In terra version 1.7.71, this mosaic returns an error:
+  #   Error : [sprc] list elementis a: logical -- the work around is to use `raster::mosaic`
+
+  sim$pineMap <- try(terra::mosaic(AB, SK, fun = "mean", na.rm = TRUE))
+  if (is(sim$pineMap, "try-error")) {
+    sim$pineMap <- {terra::rast(raster::mosaic(raster::raster(AB), raster::raster(SK),
+                                               fun = "mean", na.rm = TRUE))} |>
+      Cache()
+  }
+
+  if (P(sim)$lowMemory) {
+    sim$pineMap <- writeRaster(sim$pineMap, filename = file.path(inputPath(sim), "pineMap_AB_SK.tif"),
+                               overwrite = TRUE)
+  } else {
+    sim$pineMap[] <- sim$pineMap[]
+  }
+
+  if (nlyr(sim$pineMap) > 1) {
+    browser() ## TODO: next lines are broken -- there will likely be more species than just pine
+    if (any(grep("layer", names(sim$pineMap) )))
+      names(sim$pineMap) <- sim$sppEquiv$KNN
+    pinuTotal <- list()
+    pinuTotal[[1]] <- sum(sim$pineMap[[sim$sppEquiv$KNN[1]]][], na.rm = TRUE)
+    pinuTotal[[2]] <- sum(sim$pineMap[[sim$sppEquiv$KNN[2]]][], na.rm = TRUE)
+    whGreater <- pinuTotal[[1]] < pinuTotal[[2]]
+    ratioOfPines <- pinuTotal[[whGreater + 2]]/pinuTotal[[whGreater + 1]]
+    if (ratioOfPines < 0.1 && !isFALSE(P(sim)$simplifyPines)) {
+      message(sim$sppEquiv$KNN[[whGreater + 1]], " represents ", round((1 - ratioOfPines) * 100, 0),
+              "% of the pine abundance; ",
+              "collapsing all pine into 1 species (",sim$sppEquiv$KNN[[whGreater + 1]],"). ",
+              " To prevent this, set simplifyPines parameter to FALSE")
+    }
+    sim$pineMap <- sum(sim$pineMap)
+    names(sim$pineMap) <- sim$sppEquiv$KNN[[whGreater + 1]]
+  }
+
+  sim <- importMap(sim)
+  numLayersInPM <- nlyr(sim$pineMap)
+  pineSpeciesNames <- P(sim)$pineSpToUse
+  if (!is.null(sim$sppEquiv)) {
+    # check this again because it may not have existed in the .inputObjects
+    if (numLayersInPM == 1) {
+      colInSppEquiv <- equivalentNameColumn(pineSpeciesNames, sim$sppEquiv)
+      sim$sppEquiv[get(colInSppEquiv) %in% pineSpeciesNames, MPB := "Pinu"]
+    }
+  }
+  if (!is.null(sim$speciesLayers)) {
+    pinesInSpeciesLayers <- equivalentName(pineSpeciesNames, sim$sppEquiv,
+                                           equivalentNameColumn(names(sim$speciesLayers), sim$sppEquiv))
+    numLayersInSL <- nlyr(sim$speciesLayers[[pinesInSpeciesLayers]])
+    if (numLayersInSL != numLayersInPM) {
+      if (numLayersInPM == 1 && numLayersInSL == 2) {
+        message("Squashing the sim$speciesLayers pine layers into one species because sim$pineMaps has only one layer")
+        whLayerMax <- which.max(apply(sim$speciesLayers[[pinesInSpeciesLayers]][], 2, sum, na.rm = TRUE))
+        message("The pine layer will show up as ", pinesInSpeciesLayers[whLayerMax])
+        whLayerDrop <- which(names(sim$speciesLayers) %in% pinesInSpeciesLayers[-whLayerMax])
+        sim$speciesLayers <- raster::dropLayer(sim$speciesLayers, whLayerDrop)
+        sim$speciesLayers[[pinesInSpeciesLayers[whLayerMax]]][] <- sim$pineMap[]
+      }
+    } else {
+      browser() # This is not ready yet
+    }
+  }
+}
+
+
 .inputObjects <- function(sim) {
   cacheTags <- c(currentModule(sim))
-  cPath <- cachePath(sim)
+  # cPath <- cachePath(sim)
   dPath <- asPath(getOption("reproducible.destinationPath", dataPath(sim)), 1)
   if (getOption("LandR.verbose", TRUE) > 0)
     message(currentModule(sim), ": using dataPath '", dPath, "'.")
@@ -240,7 +241,7 @@ doEvent.mpbPine <- function(sim, eventTime, eventType, debug = FALSE) {
   ## load study area
   if (!suppliedElsewhere("studyArea")) {
     sim$studyArea <- mpbStudyArea(ecoregions = c(112, 120, 122, 124, 126), mod$targetCRS,
-                                  cPath, dPath)
+                                  cPath =cachePath(sim), dPath)
   }
 
   ## raster to match
@@ -298,45 +299,45 @@ importMap <- function(sim) {
   return(invisible(sim))
 }
 
-prepInputs_ABPine <- function(url, rasterToMatch, layers, destinationPath, ...) {
-  dirForExtract <- file.path(destinationPath, "Pine_data_AB")
-
-  AB <- prepInputs(url = url,
-                    destinationPath = dirForExtract,
-                    targetFile = "AB_PineVolumes_Lambert.gdb",
-                    rasterizeMask = rasterizeMask,
-                    layers = layers,
-                    rasterToMatch = rasterToMatch,
-                    useCache = FALSE,
-                    fun = rasterizeMask(targetFile, layer = layers, rasterToMatch = rasterToMatch)
-  ) |> Cache()
-
-  if (FALSE) { # old way without prepInputs
-    # fileInfo <- preProcess(url = url, archive = NA, destinationPath = destinationPath, ...)
-    # out <- archive::archive_extract(fileInfo$targetFilePath, dir = dirForExtract)
-
-    gdbName <- unique(dirname(out))[2]
-    origDir <- setwd(dirForExtract)
-    on.exit(setwd(origDir))
-
-    layerNames <- sf::st_layers(gdbName)$name
-    rtmCRS <- sf::st_crs(rasterToMatch)
-    for (y in layerNames[1]) {
-      co <- capture.output({
-        pineMap <- sf::st_read(gdbName, layer = y)
-      })
-      pineMap <- st_transform(pineMap, rtmCRS)
-      pineMap <- st_cast(pineMap, "MULTIPOLYGON")
-      pineMap <- fixErrors(pineMap, testValidity = FALSE, useCache = FALSE)
-      rrr <- st_crop(pineMap, rasterToMatch)
-      rrr <- st_cast(rrr, "MULTIPOLYGON")
-      AB <- terra::rast(fasterize::fasterize(rrr, raster = raster::raster(rasterToMatch), field = "PCT_P"))
-      AB <- maskInputs(AB, rasterToMatch = rasterToMatch, studyArea = NULL, maskWithRTM = TRUE)
-    }
-  }
-  return(AB)
-}
-
+# prepInputs_ABPine <- function(url, rasterToMatch, layers, destinationPath, ...) {
+#   dirForExtract <- file.path(destinationPath, "Pine_data_AB")
+#
+#   AB <- prepInputs(url = url,
+#                     destinationPath = dirForExtract,
+#                     targetFile = "AB_PineVolumes_Lambert.gdb",
+#                     rasterizeMask = rasterizeMask,
+#                     layers = layers,
+#                     rasterToMatch = rasterToMatch,
+#                     useCache = FALSE,
+#                     fun = rasterizeMask(targetFile, layer = layers, rasterToMatch = rasterToMatch)
+#   ) |> Cache(.functionName = paste0("prepInputs_AB_PineVolumes_Lambert.gdb"))
+#
+#   if (FALSE) { # old way without prepInputs
+#     # fileInfo <- preProcess(url = url, archive = NA, destinationPath = destinationPath, ...)
+#     # out <- archive::archive_extract(fileInfo$targetFilePath, dir = dirForExtract)
+#
+#     gdbName <- unique(dirname(out))[2]
+#     origDir <- setwd(dirForExtract)
+#     on.exit(setwd(origDir))
+#
+#     layerNames <- sf::st_layers(gdbName)$name
+#     rtmCRS <- sf::st_crs(rasterToMatch)
+#     for (y in layerNames[1]) {
+#       co <- capture.output({
+#         pineMap <- sf::st_read(gdbName, layer = y)
+#       })
+#       pineMap <- st_transform(pineMap, rtmCRS)
+#       pineMap <- st_cast(pineMap, "MULTIPOLYGON")
+#       pineMap <- fixErrors(pineMap, testValidity = FALSE, useCache = FALSE)
+#       rrr <- st_crop(pineMap, rasterToMatch)
+#       rrr <- st_cast(rrr, "MULTIPOLYGON")
+#       AB <- terra::rast(fasterize::fasterize(rrr, raster = raster::raster(rasterToMatch), field = "PCT_P"))
+#       AB <- maskInputs(AB, rasterToMatch = rasterToMatch, studyArea = NULL, maskWithRTM = TRUE)
+#     }
+#   }
+#   return(AB)
+# }
+#
 
 rasterizeMask <- function(targetFile, rasterToMatch, layer) {
   out <- sf::st_read(targetFile, layer = layer)
