@@ -223,6 +223,7 @@ getPineMaps <- function(sim) {
       browser() # This is not ready yet
     }
   }
+  sim
 }
 
 
