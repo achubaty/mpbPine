@@ -45,12 +45,17 @@ defineModule(sim, list(
                     desc = "Should this entire module be run with caching activated?")
   ),
   inputObjects = bindrows(
-    expectsInput("mpbGrowthDT", "data.table",
-                 desc = "Current MPB attack map (number of red attacked trees).",
-                 sourceURL = NA),
+    # expectsInput("mpbGrowthDT", "data.table",
+    #              desc = "Current MPB attack map (number of red attacked trees).",
+    #              sourceURL = NA),
     expectsInput("rasterToMatch", "RasterLayer",
-                 desc = "if not supplied, will default to standAgeMap", # TODO: description needed
+                 desc = "if not supplied, will default to LandR::prepInputsLCC", # TODO: description needed
                  sourceURL = NA),
+    expectsInput("speciesLayers", "SpatRaster",
+                 desc = paste0("Optional; will take the multiple pine layers and update ",
+                               "so it is just one layer if it exists"), # TODO: description needed
+                 sourceURL = NA),
+
     expectsInput("sppColors", "character",
                  desc = paste("A named vector of colors to use for plotting.",
                               "The names must be in sim$speciesEquivalency[[sim$sppEquivCol]],",
@@ -59,18 +64,18 @@ defineModule(sim, list(
     expectsInput("sppEquiv", "data.table",
                  desc = "table of species equivalencies. See LandR::sppEquivalencies_CA.",
                  sourceURL = ""),
-    expectsInput("standAgeMap", "RasterLayer",
-                 desc = "stand age map in study area, default is Canada national stand age map",
-                 sourceURL = paste0("http://ftp.maps.canada.ca/pub/nrcan_rncan/Forests_Foret/",
-                                    "canada-forests-attributes_attributs-forests-canada/",
-                                    "2001-attributes_attributs-2001/",
-                                    "NFI_MODIS250m_2001_kNN_Structure_Stand_Age_v1.tif")),
+    # expectsInput("standAgeMap", "RasterLayer",
+    #              desc = "stand age map in study area, default is Canada national stand age map",
+    #              sourceURL = paste0("http://ftp.maps.canada.ca/pub/nrcan_rncan/Forests_Foret/",
+    #                                 "canada-forests-attributes_attributs-forests-canada/",
+    #                                 "2001-attributes_attributs-2001/",
+    #                                 "NFI_MODIS250m_2001_kNN_Structure_Stand_Age_v1.tif")),
     expectsInput("studyArea", "SpatialPolygons",
                  desc = "The study area to which all maps will be cropped and reprojected.",
                  sourceURL = NA),
-    expectsInput("studyAreaLarge", "SpatialPolygons",
-                 desc = "The larger study area to use for spread parameter estimation.", ## TODO: not used yet; will use with LandR
-                 sourceURL = NA),
+    # expectsInput("studyAreaLarge", "SpatialPolygons",
+    #              desc = "The larger study area to use for spread parameter estimation.", ## TODO: not used yet; will use with LandR
+    #              sourceURL = NA),
     # expectsInput(NA, NA,
     #              desc = "Additional documentation for kNN datasets.",
     #              sourceURL = "http://tree.nfis.org/NFI_and_kNN_Mapping_20160628.docx")
@@ -138,7 +143,6 @@ getPineMaps <- function(sim) {
                    fun = quote(rasterizeMask(targetFile, layer = layers, rasterToMatch = rasterToMatch))
   ) |> Cache(.functionName = paste0("prepInputs_AB_Pine"))
 
-
   # AB <- Cache(prepInputs_ABPine, url = url_AB, rasterToMatch = sim$rasterToMatch,
   #             layers = "OVERSTOREY_PINE", destinationPath = inputPath(sim),
   #             maskWithRTM = TRUE, fun = "sf::st_as_sf")
@@ -196,7 +200,7 @@ getPineMaps <- function(sim) {
     names(sim$pineMap) <- sim$sppEquiv$KNN[[whGreater + 1]]
   }
 
-  sim <- importMap(sim)
+  sim$pineDT <- pineMapToDT(pineMap = sim$pineMap, stemsPerHaAvg = Par$stemsPerHaAvg)
   numLayersInPM <- nlyr(sim$pineMap)
   pineSpeciesNames <- P(sim)$pineSpToUse
   if (!is.null(sim$sppEquiv)) {
@@ -256,19 +260,19 @@ getPineMaps <- function(sim) {
   }
 
   ## stand age map
-  if (!suppliedElsewhere("standAgeMap", sim)) {
-    sim$standAgeMap <- LandR::prepInputsStandAgeMap(
-      startTime = 2010,
-      ageUrl = na.omit(extractURL("standAgeMap")),
-      destinationPath = dPath,
-      studyArea = sim$studyArea,
-      rasterToMatch = sim$rasterToMatch,
-      userTags = c("stable", currentModule(sim))
-    )
-    sim$standAgeMap[] <- asInteger(sim$standAgeMap[])
-  }
+  # if (!suppliedElsewhere("standAgeMap", sim)) {
+  #   sim$standAgeMap <- LandR::prepInputsStandAgeMap(
+  #     startTime = 2010,
+  #     ageUrl = na.omit(extractURL("standAgeMap")),
+  #     destinationPath = dPath,
+  #     studyArea = sim$studyArea,
+  #     rasterToMatch = sim$rasterToMatch,
+  #     userTags = c("stable", currentModule(sim))
+  #   )
+  #   sim$standAgeMap[] <- asInteger(sim$standAgeMap[])
+  # }
 
-  if (!(suppliedElsewhere("sppEquiv", sim) || suppliedElsewhere("sppNameVector", sim))) {
+  if (!(suppliedElsewhere("sppEquiv", sim))) {# || suppliedElsewhere("sppNameVector", sim))) {
     data("sppEquivalencies_CA", package = "LandR", envir = environment())
     sim$sppEquiv <- as.data.table(sppEquivalencies_CA) %>%
       .[KNN %in% c("Pinu_Ban", "Pinu_Con", "Pinu_Con_Lat"), ] ## NOTE!
@@ -286,18 +290,19 @@ getPineMaps <- function(sim) {
 
 ## event functions
 
-importMap <- function(sim) {
+pineMapToDT <- function(pineMap, stemsPerHaAvg) {
   ## create data.table version
-  pctPine <- if (nlyr(sim$pineMap) > 1) sum(sim$pineMap)[] else sim$pineMap[]
+  pctPine <- if (nlyr(pineMap) > 1) sum(pineMap)[] else pineMap[]
   pctPine <- as.vector(pctPine)
-  sim$pineDT <- data.table(ID = 1L:ncell(sim$pineMap), ## TODO: use sppEquivNames
+  pineDT <- data.table(ID = 1L:ncell(pineMap), ## TODO: use sppEquivNames
                            PROPPINE = pctPine / 100) # use proportion
-  sim$pineDT[, NUMTREES := asInteger(PROPPINE * P(sim)$stemsPerHaAvg * prod(res(sim$pineMap)) / 100^2)]
+  pineDT[, NUMTREES := asInteger(PROPPINE *
+                                   stemsPerHaAvg * prod(res(pineMap)) / 100^2)]
 
-  setkey(sim$pineDT, ID)
-  sim$pineDT[is.na(PROPPINE), ':='(PROPPINE = 0.00, NUMTREES = 0.00)]
+  setkey(pineDT, ID)
+  pineDT[is.na(PROPPINE), ':='(PROPPINE = 0.00, NUMTREES = 0.00)]
 
-  return(invisible(sim))
+  return(pineDT)
 }
 
 # prepInputs_ABPine <- function(url, rasterToMatch, layers, destinationPath, ...) {
