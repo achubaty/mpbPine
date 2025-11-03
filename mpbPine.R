@@ -150,28 +150,31 @@ getPineMaps <- function(sim) {
 
   url_SK <- "https://drive.google.com/file/d/1gpA9M4nhrnfIIvGQ7jcM9A7Fo-3MYpU1/"
   options(opts) # this next still not working with postProcessTerra (Eliot Feb 28, 2022)
-  SK <- Cache(
-    prepInputs(url = url_SK,
+  SK <- try(prepInputs(url = url_SK,
                targetFile = "SK_INV_JPpct10_Lambert.tif",
                alsoExtract = "similar",
                rastTimes10 = rastTimes10,
                fun = quote(rastTimes10(targetFile)),
                rasterToMatch = sim$rasterToMatch,
                maskWithRTM = TRUE,
-               destinationPath = dPath),
+               destinationPath = dPath)) |>
+    Cache(
     # cachePath = cPath),
     .functionName = paste0("prepInputs_SK_Pine")
   )
+  if (is(SK, 'try-error')) {
   # SK[] <- SK[] * 10
+    sim$pineMap <- AB
+  } else {
+    # In terra version 1.7.71, this mosaic returns an error:
+    #   Error : [sprc] list elementis a: logical -- the work around is to use `raster::mosaic`
+    sim$pineMap <- try(terra::mosaic(AB, SK, fun = "mean", na.rm = TRUE))
+    if (is(sim$pineMap, "try-error")) {
+      sim$pineMap <- {terra::rast(raster::mosaic(raster::raster(AB), raster::raster(SK),
+                                                 fun = "mean", na.rm = TRUE))} |>
+        Cache()
+    }
 
-  # In terra version 1.7.71, this mosaic returns an error:
-  #   Error : [sprc] list elementis a: logical -- the work around is to use `raster::mosaic`
-
-  sim$pineMap <- try(terra::mosaic(AB, SK, fun = "mean", na.rm = TRUE))
-  if (is(sim$pineMap, "try-error")) {
-    sim$pineMap <- {terra::rast(raster::mosaic(raster::raster(AB), raster::raster(SK),
-                                               fun = "mean", na.rm = TRUE))} |>
-      Cache()
   }
 
   if (P(sim)$lowMemory) {
